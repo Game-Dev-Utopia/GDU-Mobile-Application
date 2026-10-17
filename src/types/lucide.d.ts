@@ -36,4 +36,5 @@ declare module 'lucide-react' {
   export const TrendingUp: any;
   export const Eye: any;
   export const Check: any;
+  export const Plus: any;
 }

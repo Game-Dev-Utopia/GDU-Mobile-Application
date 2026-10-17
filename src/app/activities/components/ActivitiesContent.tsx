@@ -6,7 +6,8 @@ import { ActivitiesPageSkeleton } from '@/components/ui/LoadingSkeleton';
 import ActivityCard from './ActivityCard';
 import ActivityDetailModal from './ActivityDetailModal';
 import ActivityFilters from './ActivityFilters';
-import { Zap, Search } from 'lucide-react';
+import { Zap, Search, Plus } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ActivitiesContent() {
   const [loading, setLoading] = useState(true);
@@ -20,7 +21,6 @@ export default function ActivitiesContent() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      // TODO: Replace with API call — see lib/api.ts
       const data = await getActivities();
       if (!cancelled) {
         setActivities(data);
@@ -71,16 +71,23 @@ export default function ActivitiesContent() {
             <span className="text-xp-lime font-semibold">+{totalXPAvailable.toLocaleString()} XP</span> available
           </p>
         </div>
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search activities…"
-            className="w-full bg-input border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all duration-150"
-          />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/activities/propose"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+          >
+            <Plus size={16} /> Propose New Activity
+          </Link>
+          <div className="relative w-full sm:w-72">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search activities…"
+              className="w-full bg-input border border-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all duration-150"
+            />
+          </div>
         </div>
       </div>
 

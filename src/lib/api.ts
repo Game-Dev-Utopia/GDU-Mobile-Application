@@ -4,12 +4,12 @@ import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
-export type Branch = 'PICT' | 'IIITK'
+export type Branch = 'GDU PICT' | 'GDU IIITK'
 
-export type LeagueTier = 'Obsidian' | 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond'
+export type LeagueTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Emerald' | 'Diamond'
 
 export type ActivityDomain =
-  | 'Game Dev' | 'Design' | 'Content' | 'AI' | 'Web/DevOps' | 'R&D' | 'Marketing' | 'Ops'
+  | 'Game Dev (Coding)' | 'Web & DevOps' | 'AI & ML' | 'Marketing' | 'Eternal Affairs' | 'Design & Digital Arts' | 'Research & Development (R&D)'
 
 export type ActivityDifficulty = 1 | 2 | 3 | 4 | 5
 
@@ -46,6 +46,8 @@ export interface Member {
   pendingClaims: number;
   joinedAt: string;
   role: ViewAsRole;
+  roles: string[];
+  scopes: string[];
 }
 
 export interface WeeklyXPPoint {
@@ -75,6 +77,16 @@ export interface ActivityType {
   difficulty: ActivityDifficulty;
   evidenceRequired: boolean;
   approversNeeded: number;
+  isActive: boolean;
+}
+
+export interface ActivitySubcategory {
+  id: string;
+  category: ExpCategory;
+  name: string;
+  displayName: string;
+  description?: string;
+  sortOrder: number;
   isActive: boolean;
 }
 
@@ -145,27 +157,29 @@ export interface OnboardingPayload {
 
 // ─── Helper: map DB profile to Member type ──────────────────────────────
 
-function mapProfileToMember(profile: any): Member {
+function mapProfileToMember(profile: any, userRoles: string[] = [], userScopes: string[] = []): Member {
   return {
     id: profile.id,
     name: profile.display_name || profile.username,
     username: profile.username,
     avatar: profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`,
-    branch: (profile.branch_id as Branch) || 'PICT',
-    domain: (profile.domain_id as ActivityDomain) || 'Game Dev',
+    branch: (profile.branch_name as Branch) || 'GDU PICT',
+    domain: (profile.domain_name as ActivityDomain) || 'Game Dev (Coding)',
     totalXP: profile.total_exp ?? 0,
     level: profile.level ?? 1,
     levelName: `Level ${profile.level ?? 1}`,
     xpInLevel: 0,
     xpToNextLevel: 0,
     streak: 0,
-    leagueTier: (profile.league_tier as LeagueTier) || 'Obsidian',
+    leagueTier: (profile.league_tier as LeagueTier) || 'Bronze',
     leagueRank: 0,
     branchRank: 0,
     globalRank: 0,
     pendingClaims: 0,
     joinedAt: profile.created_at,
     role: (profile.role as ViewAsRole) || 'member',
+    roles: userRoles,
+    scopes: userScopes,
   }
 }
 
@@ -177,16 +191,37 @@ export async function getCurrentMember(): Promise<Member> {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(`
+      *,
+      branches ( name ),
+      domains ( name )
+    `)
     .eq('id', user.id)
     .single()
 
   if (error || !profile) throw new Error('Profile not found')
 
+  // Fetch role assignments for RBAC
+  const { data: roleAssignments } = await supabase
+    .from('role_assignments')
+    .select('role, scope')
+    .eq('profile_id', user.id)
+    .eq('is_active', true)
+
+  const userRoles = roleAssignments?.map((ra: any) => ra.role) || [(profile.role as ViewAsRole) || 'member']
+  const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self']
+
+  // Attach branch_name and domain_name from joins
+  const profileWithNames = {
+    ...profile,
+    branch_name: profile.branches?.name,
+    domain_name: profile.domains?.name,
+  }
+
   const levelInfo = xpToLevel(profile.total_exp ?? 0)
 
   return {
-    ...mapProfileToMember(profile),
+    ...mapProfileToMember(profileWithNames, userRoles, userScopes),
     level: levelInfo.level,
     xpInLevel: levelInfo.xpInLevel,
     xpToNextLevel: levelInfo.xpToNextLevel,
@@ -251,7 +286,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Game Jam Participation',
     category: 'technology_innovation_wisdom',
-    domain: 'Game Dev',
+    domain: 'Game Dev (Coding)',
     expMin: 100,
     expMax: 500,
     seasonCap: 3,
@@ -267,7 +302,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Project Development',
     category: 'technology_innovation_wisdom',
-    domain: 'Game Dev',
+    domain: 'Game Dev (Coding)',
     expMin: 50,
     expMax: 200,
     seasonCap: 4,
@@ -283,7 +318,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Bug Fix / QA',
     category: 'technology_innovation_wisdom',
-    domain: 'Web/DevOps',
+    domain: 'Web & DevOps',
     expMin: 25,
     expMax: 100,
     seasonCap: 10,
@@ -299,7 +334,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'AI/ML Prototype',
     category: 'technology_innovation_wisdom',
-    domain: 'AI',
+    domain: 'AI & ML',
     expMin: 75,
     expMax: 250,
     seasonCap: 3,
@@ -315,7 +350,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Open Source PR',
     category: 'technology_innovation_wisdom',
-    domain: 'Web/DevOps',
+    domain: 'Web & DevOps',
     expMin: 50,
     expMax: 150,
     seasonCap: 6,
@@ -333,7 +368,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Blog Post / Technical Writing',
     category: 'motivation_initiative_learning_mindset',
-    domain: 'Content',
+    domain: 'Design & Digital Arts',
     expMin: 30,
     expMax: 100,
     seasonCap: 6,
@@ -349,7 +384,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'SIG Session Conducted',
     category: 'motivation_initiative_learning_mindset',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 40,
     expMax: 120,
     seasonCap: 6,
@@ -365,7 +400,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Session Attendance',
     category: 'motivation_initiative_learning_mindset',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 5,
     expMax: 25,
     seasonCap: 20,
@@ -381,7 +416,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Tutorial Created',
     category: 'motivation_initiative_learning_mindset',
-    domain: 'Content',
+    domain: 'Design & Digital Arts',
     expMin: 60,
     expMax: 150,
     seasonCap: 4,
@@ -399,7 +434,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Mentoring',
     category: 'social_soft_skills',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 20,
     expMax: 80,
     seasonCap: 8,
@@ -415,7 +450,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Community Discord Moderation',
     category: 'social_soft_skills',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 30,
     expMax: 100,
     seasonCap: 6,
@@ -447,7 +482,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Referral',
     category: 'social_soft_skills',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 0,
     expMax: 50,
     seasonCap: 5,
@@ -465,7 +500,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Event Hosting',
     category: 'leadership_management',
-    domain: 'Ops',
+    domain: 'Eternal Affairs',
     expMin: 25,
     expMax: 150,
     seasonCap: 5,
@@ -481,7 +516,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Project Lead',
     category: 'leadership_management',
-    domain: 'Game Dev',
+    domain: 'Game Dev (Coding)',
     expMin: 100,
     expMax: 300,
     seasonCap: 2,
@@ -513,7 +548,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   {
     name: 'Interview Panel',
     category: 'leadership_management',
-    domain: 'R&D',
+    domain: 'Research & Development (R&D)',
     expMin: 30,
     expMax: 100,
     seasonCap: 6,
@@ -542,7 +577,10 @@ export async function getActivities(filters?: {
   // Get activity types from Supabase with real EXP ranges and season caps
   const { data: activityTypes, error } = await supabase
     .from('activity_types')
-    .select('*')
+    .select(`
+      *,
+      domains ( name )
+    `)
     .eq('is_active', true)
 
   if (error || !activityTypes) {
@@ -581,7 +619,7 @@ export async function getActivities(filters?: {
       id: at.id,
       title: at.name,
       description: at.description || `${at.category} activity`,
-      domain: at.domain_id as ActivityDomain,
+      domain: (at.domains as any)?.name as ActivityDomain,
       difficulty: at.difficulty,
       xpReward,
       status: remainingCap === 0 ? 'closed' : 'open',
@@ -628,7 +666,7 @@ function seedActivitiesToActivity(filters?: {
       id: 'act-001',
       title: 'Global Game Jam 2026 — Team Lead',
       description: 'Lead a team of 3–5 members through the 48-hour Global Game Jam. Submit a playable build with a devlog.',
-      domain: 'Game Dev',
+      domain: 'Game Dev (Coding)',
       difficulty: 5,
       xpReward: 500,
       bonusXP: 100,
@@ -647,7 +685,7 @@ function seedActivitiesToActivity(filters?: {
       id: 'act-002',
       title: 'Pixel Art Character Sheet',
       description: 'Create a character sheet with idle, walk, and attack animations. Min 32×32px sprite, 4-directional.',
-      domain: 'Design',
+      domain: 'Design & Digital Arts',
       difficulty: 3,
       xpReward: 200,
       status: 'open',
@@ -664,7 +702,7 @@ function seedActivitiesToActivity(filters?: {
       id: 'act-003',
       title: 'Unity Shader Workshop Recap',
       description: 'Write a structured recap of the Unity Shader workshop including code snippets, screenshots, and key takeaways.',
-      domain: 'Content',
+      domain: 'Web & DevOps',
       difficulty: 2,
       xpReward: 150,
       status: 'open',
@@ -674,7 +712,7 @@ function seedActivitiesToActivity(filters?: {
       tags: ['workshop', 'unity', 'writing'],
       claimedCount: 5,
       maxClaims: 8,
-      branch: 'PICT',
+      branch: 'GDU PICT',
       postedBy: 'Rahul Desai',
       postedAt: '2026-09-27T09:00:00Z',
     },
@@ -682,7 +720,7 @@ function seedActivitiesToActivity(filters?: {
       id: 'act-004',
       title: 'Game Audio SFX Pack — Horror Theme',
       description: 'Produce a minimum of 10 original SFX for a horror-themed game. Must be royalty-free and CC0 licensed.',
-      domain: 'Design',
+      domain: 'Design & Digital Arts',
       difficulty: 4,
       xpReward: 300,
       bonusXP: 50,
@@ -710,7 +748,7 @@ function seedActivitiesToActivity(filters?: {
       tags: ['social-media', 'design', 'marketing'],
       claimedCount: 2,
       maxClaims: 3,
-      branch: 'IIITK',
+      branch: 'GDU IIITK',
       postedBy: 'Sneha Kulkarni',
       postedAt: '2026-09-29T14:00:00Z',
     },
@@ -797,7 +835,7 @@ export async function getRecentTransactions(limit = 5): Promise<XPTransaction[]>
     id: e.id,
     activityId: e.claims?.id || 'unknown',
     activityName: e.claims?.title || 'Unknown Activity',
-    domain: 'Game Dev',
+    domain: 'Game Dev (Coding)',
     xpEarned: e.amount > 0 ? e.amount : 0,
     timestamp: e.created_at,
     claimId: e.claim_id || '',
@@ -851,6 +889,69 @@ export async function getActivityById(id: string): Promise<ActivityType | null> 
   }
 }
 
+export async function getActivitySubcategories(): Promise<ActivitySubcategory[]> {
+  const { data, error } = await supabase
+    .from('activity_subcategories')
+    .select('*')
+    .eq('is_active', true)
+    .order('category', { ascending: true })
+    .order('sort_order', { ascending: true })
+
+  if (error || !data) return []
+
+  return data.map((a: any) => ({
+    id: a.id,
+    category: a.category,
+    name: a.name,
+    displayName: a.display_name,
+    description: a.description,
+    sortOrder: a.sort_order,
+    isActive: a.is_active,
+  }))
+}
+
+export async function getActivitiesByCategory(): Promise<
+  Record<ExpCategory, { subcategory: ActivitySubcategory; activities: ActivityType[] }[]>
+> {
+  const [subcategories, activityTypes] = await Promise.all([
+    getActivitySubcategories(),
+    getActivityTypes(),
+  ])
+
+  const result: Record<ExpCategory, { subcategory: ActivitySubcategory; activities: ActivityType[] }[]> = {
+    technology_innovation_wisdom: [],
+    motivation_initiative_learning_mindset: [],
+    social_soft_skills: [],
+    leadership_management: [],
+  }
+
+  // Group subcategories by category
+  const subcatsByCategory: Record<string, ActivitySubcategory[]> = {}
+  for (const sc of subcategories) {
+    if (!subcatsByCategory[sc.category]) subcatsByCategory[sc.category] = []
+    subcatsByCategory[sc.category].push(sc)
+  }
+
+  // Group activities by subcategory
+  const actsBySubcat: Record<string, ActivityType[]> = {}
+  for (const at of activityTypes) {
+    if (!actsBySubcat[at.id]) actsBySubcat[at.id] = []
+    // activity_types now references subcategory_id; if not set, skip grouping by subcat
+    actsBySubcat[at.id].push(at)
+  }
+
+  // Build result
+  for (const category of Object.keys(result) as ExpCategory[]) {
+    const subcats = subcatsByCategory[category] || []
+    result[category] = subcats.map((sc) => ({
+      subcategory: sc,
+      activities: activityTypes.filter((at) => at.domain === sc.name), // approximate mapping
+    }))
+  }
+
+  return result
+}
+
 export async function getMyClaims(): Promise<Claim[]> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
@@ -894,6 +995,7 @@ export async function submitClaim(data: {
   suggestedExp: number;
   analysisPointers: string;
   contributors: { memberId: string; sharePercent: number }[];
+  submittedOnBehalfOf?: string;
 }): Promise<{ claimId: string; status: ClaimStatus }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
@@ -912,11 +1014,13 @@ export async function submitClaim(data: {
     p_suggested_exp: data.suggestedExp,
     p_analysis_pointers: data.analysisPointers,
     p_contributors: contributorsJson,
+    p_submitted_on_behalf_of: data.submittedOnBehalfOf ?? null,
   })
 
   if (error) throw new Error(error.message)
 
-  return { claimId: claimId as string, status: 'submitted' }
+  const status = data.submittedOnBehalfOf ? 'awaiting_confirmation' : 'submitted'
+  return { claimId: claimId as string, status: status as ClaimStatus }
 }
 
 export async function reviewClaim(claimId: string, score: number, reason: string): Promise<void> {
@@ -974,31 +1078,157 @@ export async function getAnnouncements(): Promise<Announcement[]> {
   }))
 }
 
-export async function getLeaderboard(branch?: Branch): Promise<LeaderboardEntry[]> {
-  let query = supabase
-    .from('season_leaderboard_view')
-    .select('*')
+export type LeaderboardGroup = 'all' | 'my_team' | 'my_level' | 'my_branch';
+export type LeaderboardPeriod = 'biweekly' | 'monthly' | 'quarterly' | 'halfyearly' | 'yearly';
+export type LeaderboardMetric = 'season' | 'lifetime';
 
-  if (branch) {
-    query = query.eq('branch_id', branch)
+export interface LeaderboardEntry {
+  rank: number;
+  memberId: string;
+  name: string;
+  username: string;
+  avatar: string;
+  totalXP: number;
+  level: number;
+  leagueTier: LeagueTier;
+  streak: number;
+  branch: Branch;
+  percentile?: number; // percentile band for cross-branch views
+}
+
+export async function getLeaderboard({
+  branch,
+  group = 'all',
+  period = 'biweekly',
+  metric = 'season',
+  currentMemberId,
+}: {
+  branch?: Branch;
+  group?: LeaderboardGroup;
+  period?: LeaderboardPeriod;
+  metric?: LeaderboardMetric;
+  currentMemberId?: string;
+}): Promise<LeaderboardEntry[]> {
+  // Determine the time window based on period
+  const now = new Date();
+  let startDate: Date;
+  switch (period) {
+    case 'biweekly':
+      startDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      break;
+    case 'monthly':
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    case 'quarterly':
+      startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      break;
+    case 'halfyearly':
+      startDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+      break;
+    case 'yearly':
+      startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      break;
   }
 
-  const { data, error } = await query.order('season_exp', { ascending: false })
+  // For lifetime metric, no date filter
+  const useDateFilter = metric === 'season';
 
-  if (error || !data) return []
+  let query = supabase
+    .from('profiles')
+    .select(`
+      id,
+      display_name,
+      username,
+      avatar_url,
+      branches ( name ),
+      league_tier,
+      total_exp,
+      level
+    `);
 
-  return data.map((entry: any, idx: number) => ({
-    rank: idx + 1,
-    memberId: entry.member_id,
-    name: entry.display_name,
-    username: entry.username,
-    avatar: entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.username}`,
-    totalXP: entry.season_exp ?? 0,
-    level: 1,
-    leagueTier: (entry.league_tier as LeagueTier) || 'Obsidian',
-    streak: 0,
-    branch: (entry.branch_id as Branch) || 'PICT',
-  }))
+  if (branch) {
+    query = query.eq('branches.name', branch);
+  }
+
+  const { data: profiles, error } = await query;
+
+  if (error || !profiles) return [];
+
+  // Compute EXP per member based on metric
+  const memberExpMap: Record<string, number> = {};
+
+  if (useDateFilter) {
+    // Get ledger entries within the period
+    const { data: entries } = await supabase
+      .from('ledger_entries')
+      .select('member_id, amount')
+      .eq('source', 'claim')
+      .gte('activity_date', startDate.toISOString().split('T')[0]);
+
+    if (entries) {
+      for (const e of entries) {
+        memberExpMap[e.member_id] = (memberExpMap[e.member_id] || 0) + Math.max(0, e.amount);
+      }
+    }
+  } else {
+    // Lifetime EXP from profiles
+    for (const p of profiles) {
+      memberExpMap[p.id] = p.total_exp ?? 0;
+    }
+  }
+
+  // Build entries
+  const entries: LeaderboardEntry[] = profiles.map((p: any, idx: number) => {
+    const exp = memberExpMap[p.id] ?? 0;
+    const levelInfo = xpToLevel(exp);
+
+    return {
+      rank: idx + 1,
+      memberId: p.id,
+      name: p.display_name,
+      username: p.username,
+      avatar: p.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.username}`,
+      totalXP: exp,
+      level: levelInfo.level,
+      leagueTier: (p.league_tier as LeagueTier) || 'Bronze',
+      streak: 0,
+      branch: (p.branches as any)?.name as Branch || 'GDU PICT',
+    };
+  });
+
+  // Sort by EXP descending
+  entries.sort((a, b) => b.totalXP - a.totalXP);
+
+  // Re-assign ranks after sorting
+  entries.forEach((e, idx) => {
+    e.rank = idx + 1;
+  });
+
+  // For cross-branch views, compute percentile bands instead of raw ranks
+  if (group === 'all' && branch === undefined) {
+    const total = entries.length;
+    entries.forEach((e) => {
+      e.percentile = Math.ceil((e.rank / total) * 100);
+    });
+  }
+
+  // Filter by group
+  if (group === 'my_branch' && currentMemberId) {
+    const currentMember = profiles.find((p: any) => p.id === currentMemberId);
+    if (currentMember) {
+      return entries.filter((e) => e.branch === (currentMember.branches as any)?.name);
+    }
+  }
+
+  if (group === 'my_level' && currentMemberId) {
+    const currentMember = profiles.find((p: any) => p.id === currentMemberId);
+    if (currentMember) {
+      const currentLevel = xpToLevel(currentMember.total_exp ?? 0).level;
+      return entries.filter((e) => e.level === currentLevel);
+    }
+  }
+
+  return entries;
 }
 
 export async function getSpotlightActivities(): Promise<Activity[]> {
@@ -1040,4 +1270,559 @@ export async function getLandingStats(): Promise<{
     xpAwardedThisSeason,
     activeBranches: 2,
   }
+}
+
+export interface LeagueTierInfo {
+  name: string;
+  displayName: string;
+  minExp: number;
+  maxExp: number | null;
+  color: string;
+  sortOrder: number;
+  isLocked: boolean;
+}
+
+export interface LeagueProgress {
+  currentTier: LeagueTierInfo;
+  nextTier: LeagueTierInfo | null;
+  progressPercent: number;
+  expToNext: number;
+}
+
+export async function getLeagueTiers(): Promise<LeagueTierInfo[]> {
+  const { data, error } = await supabase
+    .from('league_tiers')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
+  if (error || !data) return []
+
+  return data.map((t: any) => ({
+    name: t.name,
+    displayName: t.display_name,
+    minExp: t.min_exp,
+    maxExp: t.max_exp,
+    color: t.color,
+    sortOrder: t.sort_order,
+    isLocked: t.is_locked,
+  }))
+}
+
+export async function getLeagueProgress(totalExp: number): Promise<LeagueProgress> {
+  const tiers = await getLeagueTiers();
+
+  // Find current tier
+  const currentTier = tiers
+    .filter((t) => !t.isLocked)
+    .find((t) => totalExp >= t.minExp && (t.maxExp === null || totalExp <= t.maxExp)) ?? tiers[0];
+
+  // Find next tier
+  const currentIndex = tiers.findIndex((t) => t.name === currentTier.name);
+  const nextTier = currentIndex >= 0 && currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : null;
+
+  // Calculate progress
+  let progressPercent = 0;
+  let expToNext = 0;
+
+  if (nextTier) {
+    const range = nextTier.minExp - currentTier.minExp;
+    const progressInRange = totalExp - currentTier.minExp;
+    progressPercent = range > 0 ? Math.min(100, Math.max(0, (progressInRange / range) * 100)) : 100;
+    expToNext = Math.max(0, nextTier.minExp - totalExp);
+  } else {
+    progressPercent = 100;
+    expToNext = 0;
+  }
+
+  return { currentTier, nextTier, progressPercent, expToNext };
+}
+
+export async function assignLeagueTier(profileId: string): Promise<void> {
+  const { error } = await supabase.rpc('assign_league_tier', { p_profile_id: profileId });
+  if (error) throw new Error(error.message);
+}
+
+export interface ProofFile {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  storagePath: string;
+  url: string;
+  uploadedAt: string;
+}
+
+export async function uploadProof(
+  claimId: string,
+  files: File[]
+): Promise<ProofFile[]> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const uploaded: ProofFile[] = [];
+
+  for (const file of files) {
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error(`File ${file.name} exceeds 2MB limit`);
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error(`File type ${file.type} not supported`);
+    }
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const storagePath = `claims/${claimId}/${fileName}`;
+
+    const { data, error } = await supabase.storage
+      .from('claim_proofs')
+      .upload(storagePath, file);
+
+    if (error) throw new Error(error.message);
+
+    const { data: urlData } = await supabase.storage
+      .from('claim_proofs')
+      .getPublicUrl(storagePath);
+
+    const { data: proofRecord, error: dbError } = await supabase
+      .from('proof_files')
+      .insert({
+        claim_id: claimId,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        storage_path: storagePath,
+        url: urlData.publicUrl,
+      })
+      .select()
+      .single();
+
+    if (dbError) throw new Error(dbError.message);
+
+    uploaded.push({
+      id: proofRecord.id,
+      fileName: proofRecord.file_name,
+      fileSize: proofRecord.file_size,
+      fileType: proofRecord.file_type,
+      storagePath: proofRecord.storage_path,
+      url: proofRecord.url,
+      uploadedAt: proofRecord.uploaded_at,
+    });
+  }
+
+  return uploaded;
+}
+
+export async function getProofFiles(claimId: string): Promise<ProofFile[]> {
+  const { data, error } = await supabase
+    .from('proof_files')
+    .select('*')
+    .eq('claim_id', claimId)
+    .order('uploaded_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((p: any) => ({
+    id: p.id,
+    fileName: p.file_name,
+    fileSize: p.file_size,
+    fileType: p.file_type,
+    storagePath: p.storage_path,
+    url: p.url,
+    uploadedAt: p.uploaded_at,
+  }));
+}
+
+export async function confirmClaim(claimId: string, confirm: boolean): Promise<void> {
+  const { error } = await supabase.rpc('confirm_claim', {
+    p_claim_id: claimId,
+    p_confirm: confirm,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Patch D: Activity Proposals & Approvals Inbox ───────────────────────
+
+export interface ActivityProposal {
+  id: string;
+  proposedBy: string;
+  name: string;
+  category: ExpCategory;
+  subcategoryId: string | null;
+  domainId: string | null;
+  expMin: number;
+  expMax: number;
+  seasonCap: number | null;
+  difficulty: ActivityDifficulty;
+  evidenceRequired: boolean;
+  approversNeeded: number;
+  description: string | null;
+  justification: string;
+  status: 'proposed' | 'senior_approved' | 'admin_approved' | 'live' | 'rejected';
+  seniorApprovedBy: string | null;
+  seniorApprovedAt: string | null;
+  adminApprovedBy: string | null;
+  adminApprovedAt: string | null;
+  activityTypeId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApprovalItem {
+  id: string;
+  itemType: string;
+  itemId: string;
+  title: string;
+  description: string | null;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected' | 'escalated';
+  approvedBy: string | null;
+  approvedAt: string | null;
+  reviewReason: string | null;
+  scope: string;
+  createdAt: string;
+}
+
+export async function proposeActivity(data: {
+  name: string;
+  category: ExpCategory;
+  subcategoryId: string | null;
+  domainId: string | null;
+  expMin: number;
+  expMax: number;
+  seasonCap: number | null;
+  difficulty: ActivityDifficulty;
+  evidenceRequired: boolean;
+  approversNeeded: number;
+  description: string;
+  justification: string;
+}): Promise<{ proposalId: string }> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: proposalId, error } = await supabase.rpc('propose_activity', {
+    p_name: data.name,
+    p_category: data.category,
+    p_subcategory_id: data.subcategoryId,
+    p_domain_id: data.domainId,
+    p_exp_min: data.expMin,
+    p_exp_max: data.expMax,
+    p_season_cap: data.seasonCap,
+    p_difficulty: data.difficulty,
+    p_evidence_required: data.evidenceRequired,
+    p_approvers_needed: data.approversNeeded,
+    p_description: data.description,
+    p_justification: data.justification,
+  })
+
+  if (error) throw new Error(error.message)
+
+  return { proposalId: proposalId as string }
+}
+
+export async function listActivityProposals(): Promise<ActivityProposal[]> {
+  const { data, error } = await supabase.rpc('list_activity_proposals')
+
+  if (error || !data) return []
+
+  return data.map((p: any) => ({
+    id: p.id,
+    proposedBy: p.proposed_by,
+    name: p.name,
+    category: p.category,
+    subcategoryId: p.subcategory_id,
+    domainId: p.domain_id,
+    expMin: p.exp_min,
+    expMax: p.exp_max,
+    seasonCap: p.season_cap,
+    difficulty: p.difficulty,
+    evidenceRequired: p.evidence_required,
+    approversNeeded: p.approvers_needed,
+    description: p.description,
+    justification: p.justification,
+    status: p.status,
+    seniorApprovedBy: p.senior_approved_by,
+    seniorApprovedAt: p.senior_approved_at,
+    adminApprovedBy: p.admin_approved_by,
+    adminApprovedAt: p.admin_approved_at,
+    activityTypeId: p.activity_type_id,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  }))
+}
+
+export async function approveActivityProposal(
+  proposalId: string,
+  approve: boolean,
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('approve_activity_proposal', {
+    p_proposal_id: proposalId,
+    p_approve: approve,
+    p_reason: reason,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function getApprovalItems(): Promise<ApprovalItem[]> {
+  const { data, error } = await supabase
+    .from('approval_items')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+
+  if (error || !data) return []
+
+  return data.map((a: any) => ({
+    id: a.id,
+    itemType: a.item_type,
+    itemId: a.item_id,
+    title: a.title,
+    description: a.description,
+    requestedBy: a.requested_by,
+    requestedAt: a.requested_at,
+    status: a.status,
+    approvedBy: a.approved_by,
+    approvedAt: a.approved_at,
+    reviewReason: a.review_reason,
+    scope: a.scope,
+    createdAt: a.created_at,
+  }))
+}
+
+// ─── Phase 2: Badges System ──────────────────────────────────────────────
+
+export interface Badge {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  icon: string;
+  color: string;
+  xpReward: number;
+  criteria: any;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface MemberBadge {
+  id: string;
+  memberId: string;
+  badgeId: string;
+  badge: Badge;
+  earnedAt: string;
+}
+
+export interface BadgeRarityConfig {
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+}
+
+export const BADGE_RARITY_CONFIG: Record<Badge['rarity'], BadgeRarityConfig> = {
+  common: { label: 'Common', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' },
+  uncommon: { label: 'Uncommon', color: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200' },
+  rare: { label: 'Rare', color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
+  epic: { label: 'Epic', color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
+  legendary: { label: 'Legendary', color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' },
+};
+
+export async function getBadges(): Promise<Badge[]> {
+  const { data, error } = await supabase
+    .from('badges')
+    .select('*')
+    .eq('isActive', true)
+    .order('createdAt', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((b: any) => ({
+    id: b.id,
+    name: b.name,
+    slug: b.slug,
+    description: b.description,
+    rarity: b.rarity,
+    icon: b.icon,
+    color: b.color,
+    xpReward: b.xpReward,
+    criteria: b.criteria,
+    isActive: b.isActive,
+    createdAt: b.createdAt,
+  }));
+}
+
+export async function getMemberBadges(memberId?: string): Promise<MemberBadge[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const targetMemberId = memberId ?? user?.id;
+  if (!targetMemberId) return [];
+
+  const { data, error } = await supabase
+    .from('member_badges')
+    .select(`
+      *,
+      badges (*)
+    `)
+    .eq('memberId', targetMemberId)
+    .order('earnedAt', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((mb: any) => ({
+    id: mb.id,
+    memberId: mb.memberId,
+    badgeId: mb.badgeId,
+    badge: {
+      id: mb.badges.id,
+      name: mb.badges.name,
+      slug: mb.badges.slug,
+      description: mb.badges.description,
+      rarity: mb.badges.rarity,
+      icon: mb.badges.icon,
+      color: mb.badges.color,
+      xpReward: mb.badges.xpReward,
+      criteria: mb.badges.criteria,
+      isActive: mb.badges.isActive,
+      createdAt: mb.badges.createdAt,
+    },
+    earnedAt: mb.earnedAt,
+  }));
+}
+
+export async function awardBadge(memberId: string, badgeId: string): Promise<void> {
+  const { error } = await supabase.rpc('award_badge', {
+    p_member_id: memberId,
+    p_badge_id: badgeId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function checkAndAwardBadges(memberId: string): Promise<void> {
+  const { error } = await supabase.rpc('check_and_award_badges', {
+    p_member_id: memberId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Phase 2: Quests System ──────────────────────────────────────────────
+
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  type: 'weekly' | 'seasonal' | 'team' | 'one_time';
+  xpReward: number;
+  coinReward: number;
+  criteria: any;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  maxParticipants: number | null;
+  createdAt: string;
+}
+
+export interface MemberQuest {
+  id: string;
+  memberId: string;
+  questId: string;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  startedAt: string;
+  completedAt: string | null;
+  claimedAt: string | null;
+  quest: Quest;
+}
+
+export async function getQuests(): Promise<Quest[]> {
+  const { data, error } = await supabase
+    .from('quests')
+    .select('*')
+    .eq('isActive', true)
+    .order('type', { ascending: true })
+    .order('xpReward', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((q: any) => ({
+    id: q.id,
+    title: q.title,
+    description: q.description,
+    type: q.type,
+    xpReward: q.xpReward,
+    coinReward: q.coinReward,
+    criteria: q.criteria,
+    startsAt: q.startsAt,
+    endsAt: q.endsAt,
+    isActive: q.isActive,
+    maxParticipants: q.maxParticipants,
+    createdAt: q.createdAt,
+  }));
+}
+
+export async function getMemberQuests(): Promise<MemberQuest[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('member_quests')
+    .select(`
+      *,
+      quests (*)
+    `)
+    .eq('memberId', user.id)
+    .order('startedAt', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((mq: any) => ({
+    id: mq.id,
+    memberId: mq.memberId,
+    questId: mq.questId,
+    progress: mq.progress,
+    completed: mq.completed,
+    claimed: mq.claimed,
+    startedAt: mq.startedAt,
+    completedAt: mq.completedAt,
+    claimedAt: mq.claimedAt,
+    quest: {
+      id: mq.quests.id,
+      title: mq.quests.title,
+      description: mq.quests.description,
+      type: mq.quests.type,
+      xpReward: mq.quests.xpReward,
+      coinReward: mq.quests.coinReward,
+      criteria: mq.quests.criteria,
+      startsAt: mq.quests.startsAt,
+      endsAt: mq.quests.endsAt,
+      isActive: mq.quests.isActive,
+      maxParticipants: mq.quests.maxParticipants,
+      createdAt: mq.quests.createdAt,
+    },
+  }));
+}
+
+export async function claimQuestReward(memberQuestId: string): Promise<number> {
+  const { data: xpReward, error } = await supabase.rpc('claim_quest_reward', {
+    p_member_quest_id: memberQuestId,
+  });
+  if (error) throw new Error(error.message);
+  return xpReward as number;
+}
+
+export async function getOrCreateMemberQuest(questId: string): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: mqId, error } = await supabase.rpc('get_or_create_member_quest', {
+    p_member_id: user.id,
+    p_quest_id: questId,
+  });
+  if (error) throw new Error(error.message);
+  return mqId as string;
 }

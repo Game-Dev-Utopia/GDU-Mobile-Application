@@ -20,6 +20,8 @@ export interface AuthUser {
   onboardingData?: OnboardingData;
   startingLevel: number;
   role: string;
+  roles: string[];
+  scopes: string[];
   branch?: string;
   domain?: string;
   totalExp: number;
@@ -60,6 +62,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !profile) return null;
 
+    // Fetch role assignments for RBAC
+    const { data: roleAssignments } = await supabase
+      .from('role_assignments')
+      .select('role, scope')
+      .eq('profile_id', uuid)
+      .eq('is_active', true)
+
+    const userRoles = roleAssignments?.map((ra: any) => ra.role) || [profile.role]
+    const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self']
+
     return {
       id: profile.id,
       name: profile.display_name || profile.username,
@@ -68,6 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       discordId: profile.discord_id,
       onboardingComplete: profile.onboarding_complete,
       role: profile.role,
+      roles: userRoles,
+      scopes: userScopes,
       branch: profile.branch_id,
       domain: profile.domain_id,
       totalExp: profile.total_exp,
