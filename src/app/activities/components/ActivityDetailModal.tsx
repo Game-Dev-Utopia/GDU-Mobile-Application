@@ -56,8 +56,16 @@ export default function ActivityDetailModal({ activity, onClose }: ActivityDetai
     setSubmitting(true);
     setSubmitError('');
     try {
-      // TODO: POST /api/claims — see lib/api.ts submitClaim
-      await submitClaim({ activityId: activity.id, proofUrl: data.proofUrl, notes: data.notes });
+      await submitClaim({
+        activityTypeId: activity.id,
+        title: activity.title,
+        description: activity.description,
+        activityDate: new Date().toISOString().split('T')[0],
+        evidenceLinks: data.proofUrl ? [data.proofUrl] : [],
+        suggestedExp: activity.xpReward,
+        analysisPointers: data.notes,
+        contributors: [{ memberId: 'current-user', sharePercent: 100 }],
+      });
       setSubmitted(true);
       reset();
     } catch {

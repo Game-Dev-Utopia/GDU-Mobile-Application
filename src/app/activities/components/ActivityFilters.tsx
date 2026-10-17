@@ -4,7 +4,7 @@ import type { ActivityDomain, ActivityStatus } from '@/lib/api';
 import { SlidersHorizontal } from 'lucide-react';
 
 const DOMAINS: (ActivityDomain | 'all')[] = [
-  'all', 'Programming', 'Art', 'Design', 'Audio', 'Writing', 'Marketing', 'Management',
+  'all', 'Game Dev', 'Design', 'Content', 'AI', 'Web/DevOps', 'R&D', 'Marketing', 'Ops',
 ];
 
 const STATUSES: { value: ActivityStatus | 'all'; label: string }[] = [

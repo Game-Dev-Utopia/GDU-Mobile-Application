@@ -16,6 +16,7 @@ import {
   Bell,
 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 interface NavItem {
@@ -48,6 +49,10 @@ interface SidebarProps {
 
 export default function Sidebar({ activePath }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { user, isLoading } = useAuth();
+
+  const showApprover = user?.role === 'domain_head' || user?.role === 'team_lead' || user?.role === 'board' || user?.role === 'admin';
+  const showAdmin = user?.role === 'board' || user?.role === 'admin';
 
   function isActive(href: string) {
     if (href === '/') return activePath === '/';
@@ -87,6 +92,10 @@ export default function Sidebar({ activePath }: SidebarProps) {
     );
   }
 
+  if (isLoading || !user) {
+    return null;
+  }
+
   return (
     <aside
       className={`
@@ -119,25 +128,33 @@ export default function Sidebar({ activePath }: SidebarProps) {
 
         <div className="my-3 border-t border-border" />
 
-        {!collapsed && (
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
-            Approver
-          </p>
+        {showApprover && (
+          <>
+            {!collapsed && (
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
+                Approver
+              </p>
+            )}
+            {APPROVER_ITEMS.map((item) => (
+              <NavLink key={`nav-approver-${item.href}`} item={item} />
+            ))}
+          </>
         )}
-        {APPROVER_ITEMS.map((item) => (
-          <NavLink key={`nav-approver-${item.href}`} item={item} />
-        ))}
 
         <div className="my-3 border-t border-border" />
 
-        {!collapsed && (
-          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
-            Admin
-          </p>
+        {showAdmin && (
+          <>
+            {!collapsed && (
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
+                Admin
+              </p>
+            )}
+            {ADMIN_ITEMS.map((item) => (
+              <NavLink key={`nav-admin-${item.href}`} item={item} />
+            ))}
+          </>
         )}
-        {ADMIN_ITEMS.map((item) => (
-          <NavLink key={`nav-admin-${item.href}`} item={item} />
-        ))}
       </nav>
 
       {/* Bottom section */}
@@ -160,17 +177,17 @@ export default function Sidebar({ activePath }: SidebarProps) {
           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg nav-item-inactive transition-all duration-150 ${collapsed ? 'justify-center' : ''}`}
         >
           <img
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=aryan"
-            alt="Aryan Mehta avatar"
+            src={user.avatar}
+            alt={`${user.name} avatar`}
             className="w-7 h-7 rounded-full border border-border flex-shrink-0"
           />
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-medium text-foreground truncate leading-tight">
-                Aryan Mehta
+                {user.name}
               </p>
               <p className="text-[11px] text-muted-foreground truncate leading-tight">
-                Lvl 8 · Gold
+                Lvl {user.level} · {user.leagueTier}
               </p>
             </div>
           )}

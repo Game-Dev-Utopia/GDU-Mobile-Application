@@ -45,6 +45,7 @@ interface LeagueBadgeProps {
 }
 
 const LEAGUE_CONFIG: Record<LeagueTier, { label: string; color: string; bg: string; border: string; emoji: string }> = {
+  Obsidian: { label: 'Obsidian', color: 'text-slate-400', bg: 'bg-slate-800/20', border: 'border-slate-700/40', emoji: '⚫' },
   Bronze: { label: 'Bronze', color: 'text-amber-700', bg: 'bg-amber-900/20', border: 'border-amber-800/40', emoji: '🥉' },
   Silver: { label: 'Silver', color: 'text-slate-300', bg: 'bg-slate-700/20', border: 'border-slate-600/40', emoji: '🥈' },
   Gold: { label: 'Gold', color: 'text-yellow-400', bg: 'bg-yellow-900/20', border: 'border-yellow-700/40', emoji: '🥇' },
