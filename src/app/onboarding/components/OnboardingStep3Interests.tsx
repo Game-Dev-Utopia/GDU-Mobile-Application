@@ -3,12 +3,29 @@ import React, { useState } from 'react';
 import type { OnboardingData } from '@/contexts/AuthContext';
 
 const INTERESTS = [
-  'Unity', 'Godot', 'Unreal', 'Pixel Art', 'Concept Art', '3D Modeling',
-  'Sound Design', 'Game Jams', 'Narrative Design', 'Shaders', 'AI/ML in Games',
-  'Indie Dev', 'Multiplayer', 'Mobile Games', 'VR/AR', 'Speedrunning',
+  'Unity',
+  'Godot',
+  'Unreal',
+  'Pixel Art',
+  'Concept Art',
+  '3D Modeling',
+  'Sound Design',
+  'Game Jams',
+  'Narrative Design',
+  'Shaders',
+  'AI/ML in Games',
+  'Indie Dev',
+  'Multiplayer',
+  'Mobile Games',
+  'VR/AR',
+  'Speedrunning',
 ];
 
-const AVAILABILITY_OPTIONS: { value: OnboardingData['weeklyAvailability']; label: string; sublabel: string }[] = [
+const AVAILABILITY_OPTIONS: {
+  value: OnboardingData['weeklyAvailability'];
+  label: string;
+  sublabel: string;
+}[] = [
   { value: '1-3', label: '1–3 hrs/week', sublabel: 'Casual contributor' },
   { value: '3-6', label: '3–6 hrs/week', sublabel: 'Regular member' },
   { value: '6+', label: '6+ hrs/week', sublabel: 'Power contributor' },
@@ -22,12 +39,18 @@ interface Props {
   saving: boolean;
 }
 
-export default function OnboardingStep3Interests({ interests, availability, onFinish, onBack, saving }: Props) {
+export default function OnboardingStep3Interests({
+  interests,
+  availability,
+  onFinish,
+  onBack,
+  saving,
+}: Props) {
   const [picks, setPicks] = useState<string[]>(interests);
   const [avail, setAvail] = useState<OnboardingData['weeklyAvailability']>(availability);
 
   function toggleInterest(item: string) {
-    setPicks((prev) => prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]);
+    setPicks((prev) => (prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]));
   }
 
   return (
@@ -45,7 +68,8 @@ export default function OnboardingStep3Interests({ interests, availability, onFi
       {/* Interests */}
       <div className="mb-8">
         <p className="text-sm font-heading font-semibold text-foreground mb-3">
-          What are you into? <span className="text-muted-foreground font-sans font-normal">(pick any)</span>
+          What are you into?{' '}
+          <span className="text-muted-foreground font-sans font-normal">(pick any)</span>
         </p>
         <div className="flex flex-wrap gap-2">
           {INTERESTS.map((item) => {
@@ -57,7 +81,9 @@ export default function OnboardingStep3Interests({ interests, availability, onFi
                 className="px-3 py-1.5 rounded-lg text-sm font-sans font-medium transition-all duration-150 hover:scale-[1.04] active:scale-[0.97] focus:outline-none"
                 style={{
                   background: active ? 'rgba(124,92,255,0.2)' : 'rgba(255,255,255,0.04)',
-                  border: active ? '1px solid rgba(124,92,255,0.5)' : '1px solid rgba(255,255,255,0.08)',
+                  border: active
+                    ? '1px solid rgba(124,92,255,0.5)'
+                    : '1px solid rgba(255,255,255,0.08)',
                   color: active ? '#7C5CFF' : '#A0AEC0',
                 }}
               >
@@ -93,7 +119,9 @@ export default function OnboardingStep3Interests({ interests, availability, onFi
                 >
                   {opt.label}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-sans text-center">{opt.sublabel}</span>
+                <span className="text-[10px] text-muted-foreground font-sans text-center">
+                  {opt.sublabel}
+                </span>
               </button>
             );
           })}
@@ -120,7 +148,7 @@ export default function OnboardingStep3Interests({ interests, availability, onFi
               Saving…
             </>
           ) : (
-            'Let\'s go! 🚀'
+            "Let's go! 🚀"
           )}
         </button>
       </div>

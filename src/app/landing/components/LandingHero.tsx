@@ -19,7 +19,8 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
-          backgroundImage: 'linear-gradient(#7C5CFF 1px, transparent 1px), linear-gradient(90deg, #7C5CFF 1px, transparent 1px)',
+          backgroundImage:
+            'linear-gradient(#7C5CFF 1px, transparent 1px), linear-gradient(90deg, #7C5CFF 1px, transparent 1px)',
           backgroundSize: '40px 40px',
         }}
       />
@@ -29,7 +30,10 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
         className={`flex items-center gap-3 mb-10 transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
         style={{ transitionDelay: '0ms' }}
       >
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #7C5CFF, #22D3EE)' }}>
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ background: 'linear-gradient(135deg, #7C5CFF, #22D3EE)' }}
+        >
           <span className="font-pixel text-white text-xs font-bold">GDU</span>
         </div>
         <span className="font-heading font-bold text-xl text-foreground tracking-tight">
@@ -44,7 +48,9 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
       >
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 mb-6">
           <span className="w-1.5 h-1.5 rounded-full bg-xp-lime animate-pulse" />
-          <span className="text-xs font-medium text-violet-300 font-sans">GameDevUtopia · Season 3 Active</span>
+          <span className="text-xs font-medium text-violet-300 font-sans">
+            GameDevUtopia · Season 3 Active
+          </span>
         </div>
 
         <h1 className="font-heading font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[1.05] tracking-tight mb-6">
@@ -63,7 +69,8 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
         </h1>
 
         <p className="text-muted-foreground text-lg sm:text-xl font-sans max-w-xl mx-auto leading-relaxed">
-          Earn XP for every contribution — code, art, writing, events. Track your growth, climb leagues, and build your game dev portfolio.
+          Earn XP for every contribution — code, art, writing, events. Track your growth, climb
+          leagues, and build your game dev portfolio.
         </p>
       </div>
 
@@ -82,7 +89,9 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
         >
           <DiscordIcon />
           Continue with Discord
-          <span className="text-white/60 text-sm font-normal group-hover:text-white/80 transition-colors">→</span>
+          <span className="text-white/60 text-sm font-normal group-hover:text-white/80 transition-colors">
+            →
+          </span>
         </button>
         <span className="text-muted-foreground text-sm font-sans">Free · No credit card</span>
       </div>
@@ -103,13 +112,27 @@ export default function LandingHero({ onLogin }: LandingHeroProps) {
             className="flex items-center gap-2 px-4 py-2 rounded-xl border card-base"
             style={{
               animationDelay: `${i * 0.15}s`,
-              borderColor: badge.color === 'violet' ? 'rgba(124,92,255,0.3)' : badge.color === 'cyan' ? 'rgba(34,211,238,0.3)' : badge.color === 'lime' ? 'rgba(163,230,53,0.3)' : 'rgba(245,158,11,0.3)',
+              borderColor:
+                badge.color === 'violet'
+                  ? 'rgba(124,92,255,0.3)'
+                  : badge.color === 'cyan'
+                    ? 'rgba(34,211,238,0.3)'
+                    : badge.color === 'lime'
+                      ? 'rgba(163,230,53,0.3)'
+                      : 'rgba(245,158,11,0.3)',
             }}
           >
             <span
               className="font-pixel text-xs font-bold"
               style={{
-                color: badge.color === 'violet' ? '#7C5CFF' : badge.color === 'cyan' ? '#22D3EE' : badge.color === 'lime' ? '#A3E635' : '#F59E0B',
+                color:
+                  badge.color === 'violet'
+                    ? '#7C5CFF'
+                    : badge.color === 'cyan'
+                      ? '#22D3EE'
+                      : badge.color === 'lime'
+                        ? '#A3E635'
+                        : '#F59E0B',
               }}
             >
               {badge.label}

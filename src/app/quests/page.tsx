@@ -3,7 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
-import { getQuests, getMemberQuests, claimQuestReward, getOrCreateMemberQuest, type Quest, type MemberQuest } from '@/lib/api';
+import {
+  getQuests,
+  getMemberQuests,
+  claimQuestReward,
+  getOrCreateMemberQuest,
+  type Quest,
+  type MemberQuest,
+} from '@/lib/api';
 
 const TYPE_LABELS: Record<Quest['type'], string> = {
   weekly: 'Weekly',
@@ -62,11 +69,11 @@ export default function QuestsPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-heading font-bold text-ink">Quests</h1>
-            <p className="text-mute">
-              Complete quests to earn bonus XP and Coins
-            </p>
+            <p className="text-mute">Complete quests to earn bonus XP and Coins</p>
           </div>
-          <div className={`px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20`}>
+          <div
+            className={`px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20`}
+          >
             +{totalQuestXP.toLocaleString()} XP earned
           </div>
         </div>
@@ -76,7 +83,9 @@ export default function QuestsPage() {
           return (
             <section key={type} className="space-y-4">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${TYPE_COLORS[type]}`}>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold ${TYPE_COLORS[type]}`}
+                >
                   {TYPE_LABELS[type]}
                 </span>
                 {type === 'weekly' && (
@@ -105,14 +114,18 @@ export default function QuestsPage() {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <h3 className={`font-heading font-bold ${isClaimed ? 'text-green-700' : 'text-ink'} mb-1`}>
+                          <h3
+                            className={`font-heading font-bold ${isClaimed ? 'text-green-700' : 'text-ink'} mb-1`}
+                          >
                             {quest.title}
                           </h3>
                           <p className={`text-xs ${isClaimed ? 'text-green-600' : 'text-mute'}`}>
                             {quest.description}
                           </p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isClaimed ? 'text-green-600 bg-green-100' : 'text-accent bg-accent-soft'}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${isClaimed ? 'text-green-600 bg-green-100' : 'text-accent bg-accent-soft'}`}
+                        >
                           {isClaimed ? 'Claimed' : `+${quest.xpReward} XP`}
                         </span>
                       </div>
@@ -126,7 +139,9 @@ export default function QuestsPage() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-mute mb-3">
-                        <span>{progress} / {threshold}</span>
+                        <span>
+                          {progress} / {threshold}
+                        </span>
                         <span>
                           {quest.type === 'weekly' || quest.type === 'seasonal'
                             ? quest.criteria?.period || ''
@@ -136,7 +151,10 @@ export default function QuestsPage() {
 
                       <div className="flex gap-2">
                         {isClaimed ? (
-                          <button disabled className="flex-1 px-4 py-2 rounded-lg bg-green-200 text-green-700 text-sm font-medium">
+                          <button
+                            disabled
+                            className="flex-1 px-4 py-2 rounded-lg bg-green-200 text-green-700 text-sm font-medium"
+                          >
                             Claimed
                           </button>
                         ) : isCompleted ? (
@@ -154,7 +172,10 @@ export default function QuestsPage() {
                             Claim Reward
                           </button>
                         ) : (
-                          <button disabled className="flex-1 px-4 py-2 rounded-lg border border-line bg-card text-muted-foreground">
+                          <button
+                            disabled
+                            className="flex-1 px-4 py-2 rounded-lg border border-line bg-card text-muted-foreground"
+                          >
                             In Progress
                           </button>
                         )}

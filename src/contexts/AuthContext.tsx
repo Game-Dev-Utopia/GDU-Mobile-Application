@@ -67,16 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .from('role_assignments')
       .select('role, scope')
       .eq('profile_id', uuid)
-      .eq('is_active', true)
+      .eq('is_active', true);
 
-    const userRoles = roleAssignments?.map((ra: any) => ra.role) || [profile.role]
-    const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self']
+    const userRoles = roleAssignments?.map((ra: any) => ra.role) || [profile.role];
+    const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self'];
 
     return {
       id: profile.id,
       name: profile.display_name || profile.username,
       username: profile.username,
-      avatar: profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`,
+      avatar:
+        profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`,
       discordId: profile.discord_id,
       onboardingComplete: profile.onboarding_complete,
       role: profile.role,
@@ -94,7 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session?.user) {
         const profile = await loadProfile(session.user.id);
         if (profile) setUser(profile);
@@ -125,7 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const scope = 'identify email';
 
     if (!clientId || !redirectUri) {
-      console.error('Discord OAuth not configured. Set NEXT_PUBLIC_DISCORD_CLIENT_ID and NEXT_PUBLIC_DISCORD_REDIRECT_URI.');
+      console.error(
+        'Discord OAuth not configured. Set NEXT_PUBLIC_DISCORD_CLIENT_ID and NEXT_PUBLIC_DISCORD_REDIRECT_URI.'
+      );
       return;
     }
 
@@ -169,10 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (updates.branch) dbUpdates.branch_id = updates.branch;
     if (updates.domain) dbUpdates.domain_id = updates.domain;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(dbUpdates)
-      .eq('id', user.id);
+    const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', user.id);
 
     if (!error) {
       const updated: AuthUser = { ...user, ...updates };
@@ -181,7 +183,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, loginWithDiscord, logout, completeOnboarding, updateProfile }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, loginWithDiscord, logout, completeOnboarding, updateProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

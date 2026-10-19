@@ -37,4 +37,5 @@ declare module 'lucide-react' {
   export const Eye: any;
   export const Check: any;
   export const Plus: any;
+  export const BuildingIcon: any;
 }

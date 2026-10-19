@@ -46,7 +46,7 @@ function useCountUp(target: number, active: boolean, duration = 1800) {
   return count;
 }
 
-function StatItem({ stat, active }: { stat: typeof STATS[0]; active: boolean }) {
+function StatItem({ stat, active }: { stat: (typeof STATS)[0]; active: boolean }) {
   const count = useCountUp(stat.value, active);
 
   function format(n: number) {
@@ -62,7 +62,8 @@ function StatItem({ stat, active }: { stat: typeof STATS[0]; active: boolean }) 
         className="font-pixel text-4xl sm:text-5xl font-bold tabular-nums"
         style={{ color: stat.color, textShadow: `0 0 20px ${stat.color}50` }}
       >
-        {format(count)}{stat.suffix}
+        {format(count)}
+        {stat.suffix}
       </span>
       <span className="font-heading font-semibold text-base text-foreground">{stat.label}</span>
       <span className="text-xs text-muted-foreground font-sans">{stat.sublabel}</span>
@@ -78,7 +79,9 @@ export default function StatsStrip() {
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setActive(true); },
+      ([entry]) => {
+        if (entry.isIntersecting) setActive(true);
+      },
       { threshold: 0.3 }
     );
     observer.observe(el);

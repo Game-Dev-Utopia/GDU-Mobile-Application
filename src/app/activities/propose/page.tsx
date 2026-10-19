@@ -3,13 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
-import { proposeActivity, getActivitySubcategories, type ActivitySubcategory, type ExpCategory } from '@/lib/api';
+import {
+  proposeActivity,
+  getActivitySubcategories,
+  type ActivitySubcategory,
+  type ExpCategory,
+} from '@/lib/api';
 
 const CATEGORY_LABELS: Record<ExpCategory, string> = {
-  technology_innovation_wisdom: 'Technology, Innovation & Wisdom',
-  motivation_initiative_learning_mindset: 'Motivation, Initiative & Learning Mindset',
-  social_soft_skills: 'Social & Soft Skills',
-  leadership_management: 'Leadership & Management',
+  technical: 'Technical',
+  social: 'Social',
+  soft: 'Soft',
+  management: 'Management',
 };
 
 const DIFFICULTY_LABELS: Record<number, string> = {
@@ -31,6 +36,7 @@ export default function ProposeActivityPage() {
     category: '' as ExpCategory,
     subcategoryId: '' as string | null,
     domainId: '' as string | null,
+    kind: 'increment' as string,
     expMin: 0,
     expMax: 0,
     seasonCap: '',
@@ -67,6 +73,7 @@ export default function ProposeActivityPage() {
         category: form.category,
         subcategoryId: form.subcategoryId || null,
         domainId: form.domainId || null,
+        kind: form.kind,
         expMin: form.expMin,
         expMax: form.expMax,
         seasonCap: form.seasonCap ? Number(form.seasonCap) : null,
@@ -76,12 +83,16 @@ export default function ProposeActivityPage() {
         description: form.description,
         justification: form.justification,
       });
-      setMessage({ type: 'success', text: 'Activity proposal submitted! It will be reviewed by your Domain Head, then an Admin before going live.' });
+      setMessage({
+        type: 'success',
+        text: 'Activity proposal submitted! It will be reviewed by your Domain Head, then an Admin before going live.',
+      });
       setForm({
         name: '',
         category: '' as ExpCategory,
         subcategoryId: null,
         domainId: null,
+        kind: 'increment',
         expMin: 0,
         expMax: 0,
         seasonCap: '',
@@ -115,13 +126,18 @@ export default function ProposeActivityPage() {
           <div>
             <h1 className="text-2xl font-heading font-bold text-ink">Propose a New Activity</h1>
             <p className="text-mute">
-              Suggest a new activity type for the GDU XP rubric. It will be reviewed by your Domain Head, then an Admin before becoming available to all members.
+              Suggest a new activity type for the GDU XP rubric. It will be reviewed by your Domain
+              Head, then an Admin before becoming available to all members.
             </p>
           </div>
           {message && (
-            <div className={`px-4 py-3 rounded-lg border ${
-              message.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-rose-50 text-rose-700 border-rose-200'
-            }`}>
+            <div
+              className={`px-4 py-3 rounded-lg border ${
+                message.type === 'success'
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
+              }`}
+            >
               {message.text}
             </div>
           )}
@@ -160,23 +176,25 @@ export default function ProposeActivityPage() {
               </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-xs font-medium text-mute uppercase">Subcategory</label>
-              <select
-                value={form.subcategoryId ?? ''}
+                <select
+                  value={form.subcategoryId ?? ''}
                   onChange={(e) => handleChange('subcategoryId', e.target.value || null)}
                   className="w-full px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 >
                   <option value="">Select a subcategory (optional)</option>
-                  {subcategories.filter((s) => s.category === form.category || !form.category).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.displayName}
-                    </option>
-                  ))}
+                  {subcategories
+                    .filter((s) => s.category === form.category || !form.category)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.displayName}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-xs font-medium text-mute uppercase">Domain</label>
-              <select
-                value={form.domainId ?? ''}
+                <select
+                  value={form.domainId ?? ''}
                   onChange={(e) => handleChange('domainId', e.target.value || null)}
                   className="w-full px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 >
@@ -214,7 +232,9 @@ export default function ProposeActivityPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-mute uppercase">Season Cap (max claims per season)</label>
+                <label className="text-xs font-medium text-mute uppercase">
+                  Season Cap (max claims per season)
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -228,7 +248,9 @@ export default function ProposeActivityPage() {
                 <label className="text-xs font-medium text-mute uppercase">Difficulty</label>
                 <select
                   value={form.difficulty}
-                  onChange={(e) => handleChange('difficulty', Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                  onChange={(e) =>
+                    handleChange('difficulty', Number(e.target.value) as 1 | 2 | 3 | 4 | 5)
+                  }
                   className="w-full px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 >
                   {[1, 2, 3, 4, 5].map((d) => (
@@ -242,7 +264,9 @@ export default function ProposeActivityPage() {
                 <label className="text-xs font-medium text-mute uppercase">Approvers Needed</label>
                 <select
                   value={form.approversNeeded}
-                  onChange={(e) => handleChange('approversNeeded', Number(e.target.value) as 1 | 2 | 3)}
+                  onChange={(e) =>
+                    handleChange('approversNeeded', Number(e.target.value) as 1 | 2 | 3)
+                  }
                   className="w-full px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 >
                   <option value={1}>1 Approver</option>
@@ -277,7 +301,9 @@ export default function ProposeActivityPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-mute uppercase">Why this activity matters</label>
+              <label className="text-xs font-medium text-mute uppercase">
+                Why this activity matters
+              </label>
               <textarea
                 rows={4}
                 value={form.justification}
@@ -301,7 +327,13 @@ export default function ProposeActivityPage() {
             <button
               type="submit"
               className="px-4 py-2.5 rounded-lg bg-accent text-white font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
-              disabled={submitting || !form.name || !form.category || !form.justification || form.expMax < form.expMin}
+              disabled={
+                submitting ||
+                !form.name ||
+                !form.category ||
+                !form.justification ||
+                form.expMax < form.expMin
+              }
             >
               {submitting ? 'Submitting…' : 'Submit Proposal'}
             </button>

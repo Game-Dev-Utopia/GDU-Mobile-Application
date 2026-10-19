@@ -41,10 +41,26 @@ export default function ProfilePage() {
   }
 
   const categoryXP = [
-    { name: 'Technology', value: Math.floor((member?.totalXP || 0) * 0.35), color: CATEGORY_COLORS.technology_innovation_wisdom },
-    { name: 'Motivation', value: Math.floor((member?.totalXP || 0) * 0.25), color: CATEGORY_COLORS.motivation_initiative_learning_mindset },
-    { name: 'Social', value: Math.floor((member?.totalXP || 0) * 0.20), color: CATEGORY_COLORS.social_soft_skills },
-    { name: 'Leadership', value: Math.floor((member?.totalXP || 0) * 0.20), color: CATEGORY_COLORS.leadership_management },
+    {
+      name: 'Technology',
+      value: Math.floor((member?.totalXP || 0) * 0.35),
+      color: CATEGORY_COLORS.technology_innovation_wisdom,
+    },
+    {
+      name: 'Motivation',
+      value: Math.floor((member?.totalXP || 0) * 0.25),
+      color: CATEGORY_COLORS.motivation_initiative_learning_mindset,
+    },
+    {
+      name: 'Social',
+      value: Math.floor((member?.totalXP || 0) * 0.2),
+      color: CATEGORY_COLORS.social_soft_skills,
+    },
+    {
+      name: 'Leadership',
+      value: Math.floor((member?.totalXP || 0) * 0.2),
+      color: CATEGORY_COLORS.leadership_management,
+    },
   ];
 
   if (loading || !member) {
@@ -63,7 +79,9 @@ export default function ProfilePage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-heading font-bold text-ink">{member.name}</h1>
-            <p className="text-mute">@{member.username} • {member.role}</p>
+            <p className="text-mute">
+              @{member.username} • {member.role}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <span className="px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium">
@@ -85,7 +103,9 @@ export default function ProfilePage() {
               />
               <div>
                 <h2 className="font-heading font-bold text-ink text-xl">{member.name}</h2>
-                <p className="text-mute">@{member.username} • {member.branch}</p>
+                <p className="text-mute">
+                  @{member.username} • {member.branch}
+                </p>
                 <div className="mt-2 flex gap-2">
                   <span className="px-2 py-1 rounded bg-primary/10 text-primary text-xs font-medium border border-primary/20">
                     {member.domain}
@@ -98,7 +118,9 @@ export default function ProfilePage() {
               <div>
                 <div className="flex justify-between mb-2">
                   <span className="text-sm text-mute">Total EXP</span>
-                  <span className="font-mono font-bold text-ink">{member.totalXP.toLocaleString()}</span>
+                  <span className="font-mono font-bold text-ink">
+                    {member.totalXP.toLocaleString()}
+                  </span>
                 </div>
                 <XPBar current={member.xpInLevel} max={member.xpToNextLevel} showLabel animate />
               </div>
@@ -109,7 +131,12 @@ export default function ProfilePage() {
                   <span className="font-mono font-bold text-ink">{member.level}</span>
                 </div>
                 <div className="w-full bg-accent-soft/50 rounded-full h-2">
-                  <div className="h-2 rounded-full bg-accent" style={{ width: Math.min(100, (member.xpInLevel / member.xpToNextLevel) * 100) + '%' }} />
+                  <div
+                    className="h-2 rounded-full bg-accent"
+                    style={{
+                      width: Math.min(100, (member.xpInLevel / member.xpToNextLevel) * 100) + '%',
+                    }}
+                  />
                 </div>
               </div>
 
@@ -139,7 +166,10 @@ export default function ProfilePage() {
                     <div className="w-full bg-line rounded-full h-2">
                       <div
                         className="h-2 rounded-full"
-                        style={{ backgroundColor: cat.color, width: Math.min(100, (cat.value / (member.totalXP || 1)) * 100) + '%' }}
+                        style={{
+                          backgroundColor: cat.color,
+                          width: Math.min(100, (cat.value / (member.totalXP || 1)) * 100) + '%',
+                        }}
                       />
                     </div>
                   </div>
@@ -156,7 +186,9 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-mute">Weekly XP</span>
-                  <span className="font-mono text-ink">{weeklyXP.reduce((s, w) => s + w.xp, 0)}</span>
+                  <span className="font-mono text-ink">
+                    {weeklyXP.reduce((s, w) => s + w.xp, 0)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-mute">Streak</span>
@@ -168,7 +200,9 @@ export default function ProfilePage() {
         </div>
 
         <div className="rounded-xl bg-card border border-line overflow-hidden">
-          <h3 className="px-6 py-4 font-heading font-bold text-ink border-b border-line">Contribution History</h3>
+          <h3 className="px-6 py-4 font-heading font-bold text-ink border-b border-line">
+            Contribution History
+          </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead>
@@ -182,8 +216,13 @@ export default function ProfilePage() {
               </thead>
               <tbody>
                 {claims.slice(0, 10).map((claim) => (
-                  <tr key={claim.id} className="border-b border-line/50 hover:bg-accent-soft/5 transition-colors">
-                    <td className="px-6 py-3 text-sm font-mono text-mute">{new Date(claim.submittedAt).toLocaleDateString()}</td>
+                  <tr
+                    key={claim.id}
+                    className="border-b border-line/50 hover:bg-accent-soft/5 transition-colors"
+                  >
+                    <td className="px-6 py-3 text-sm font-mono text-mute">
+                      {new Date(claim.submittedAt).toLocaleDateString()}
+                    </td>
                     <td className="px-6 py-3 text-sm text-ink">{claim.activityTitle}</td>
                     <td className="px-6 py-3 text-sm">
                       <span className="px-2 py-1 rounded bg-primary/10 text-primary text-[10px] font-medium border border-primary/20">
@@ -194,13 +233,15 @@ export default function ProfilePage() {
                       {claim.xpCredited ?? claim.xpReward}
                     </td>
                     <td className="px-6 py-3 text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        claim.status === 'approved'
-                          ? 'bg-green-100 text-green-700'
-                          : claim.status === 'rejected'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-accent-soft text-accent'
-                      }`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          claim.status === 'approved'
+                            ? 'bg-green-100 text-green-700'
+                            : claim.status === 'rejected'
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-accent-soft text-accent'
+                        }`}
+                      >
                         {claim.status}
                       </span>
                     </td>

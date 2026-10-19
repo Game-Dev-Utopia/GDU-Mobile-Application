@@ -4,7 +4,6 @@ import CountUpNumber from '@/components/ui/CountUpNumber';
 import { Zap, Clock, TrendingUp, FileCheck } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
-
 interface ClaimsSummaryBarProps {
   totalXPEarned: number;
   pendingCount: number;

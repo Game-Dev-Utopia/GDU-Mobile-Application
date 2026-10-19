@@ -22,9 +22,7 @@ export default function OnboardingStep2Domains({ selected, onNext, onBack }: Pro
   const [picks, setPicks] = useState<string[]>(selected);
 
   function toggle(id: string) {
-    setPicks((prev) =>
-      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
-    );
+    setPicks((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]));
   }
 
   return (

@@ -14,6 +14,8 @@ export default function ReviewPage() {
   const [selectedClaim, setSelectedClaim] = useState<any>(null);
   const [reviewModal, setReviewModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [reviewScore, setReviewScore] = useState<number | null>(null);
+  const [reviewReason, setReviewReason] = useState('');
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -30,17 +32,29 @@ export default function ReviewPage() {
 
   function openReview(claim: any) {
     setSelectedClaim(claim);
+    setReviewScore(null);
+    setReviewReason('');
     setReviewModal(true);
   }
 
   async function handleReview(score: number, reason: string) {
     if (!selectedClaim) return;
+    if (!score || score <= 0) {
+      alert('Please enter a valid score.');
+      return;
+    }
+    if (!reason.trim()) {
+      alert('Please provide a review reason.');
+      return;
+    }
     setSubmitting(true);
     try {
       await reviewClaim(selectedClaim.id, score, reason);
       await finalizeClaim(selectedClaim.id);
       setReviewModal(false);
       setSelectedClaim(null);
+      setReviewScore(null);
+      setReviewReason('');
       loadQueue();
     } catch (err) {
       console.error('Review failed:', err);
@@ -85,16 +99,25 @@ export default function ReviewPage() {
                 <tr className="border-b border-line bg-accent-soft">
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Claim</th>
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Member</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Suggested EXP</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">
+                    Suggested EXP
+                  </th>
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Submitted</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">Action</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {queue.map((claim) => (
-                  <tr key={claim.id} className="border-b border-line/50 hover:bg-accent-soft/5 transition-colors">
+                  <tr
+                    key={claim.id}
+                    className="border-b border-line/50 hover:bg-accent-soft/5 transition-colors"
+                  >
                     <td className="px-6 py-4 text-sm text-ink">{claim.activityTitle}</td>
-                    <td className="px-6 py-4 text-sm text-mute">{claim.reviewerName || 'Anonymous'}</td>
+                    <td className="px-6 py-4 text-sm text-mute">
+                      {claim.reviewerName || 'Anonymous'}
+                    </td>
                     <td className="px-6 py-4 text-sm font-mono text-ink">{claim.xpReward}</td>
                     <td className="px-6 py-4 text-sm font-mono text-mute">
                       {new Date(claim.submittedAt).toLocaleDateString()}
@@ -138,6 +161,8 @@ export default function ReviewPage() {
                   type="number"
                   min={0}
                   max={150}
+                  value={reviewScore ?? ''}
+                  onChange={(e) => setReviewScore(Number(e.target.value) || null)}
                   className="w-24 px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 />
                 <span className="text-sm text-mute">EXP points</span>
@@ -148,6 +173,8 @@ export default function ReviewPage() {
               <label className="block text-xs font-medium text-mute mb-1">Review Reason</label>
               <textarea
                 rows={3}
+                value={reviewReason}
+                onChange={(e) => setReviewReason(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-line bg-card focus:outline-none focus:border-accent"
                 placeholder="Explain your scoring decision..."
               />
@@ -161,9 +188,9 @@ export default function ReviewPage() {
                 Cancel
               </button>
               <button
-                onClick={() => handleReview(100, 'Approved')}
+                onClick={() => handleReview(reviewScore ?? 0, reviewReason)}
                 className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
-                disabled={submitting}
+                disabled={submitting || !reviewScore || !reviewReason.trim()}
               >
                 {submitting ? 'Submitting...' : 'Approve & Finalize'}
               </button>

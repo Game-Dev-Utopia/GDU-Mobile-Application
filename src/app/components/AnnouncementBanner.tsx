@@ -4,16 +4,31 @@ import type { Announcement } from '@/lib/api';
 import { X, Megaphone, Gift, AlertTriangle, Info } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
-
 interface AnnouncementBannerProps {
   announcements: Announcement[];
 }
 
 const TYPE_CONFIG = {
-  info: { icon: Info, cls: 'border-border bg-muted/30 text-foreground', iconCls: 'text-cyancustom' },
-  event: { icon: Megaphone, cls: 'border-violetcustom/30 bg-violet-900/10 text-foreground', iconCls: 'text-violetcustom' },
-  warning: { icon: AlertTriangle, cls: 'border-ambercustom/30 bg-amber-900/10 text-foreground', iconCls: 'text-ambercustom' },
-  reward: { icon: Gift, cls: 'border-xplime/30 bg-lime-900/10 text-foreground', iconCls: 'text-xp-lime' },
+  info: {
+    icon: Info,
+    cls: 'border-border bg-muted/30 text-foreground',
+    iconCls: 'text-cyancustom',
+  },
+  event: {
+    icon: Megaphone,
+    cls: 'border-violetcustom/30 bg-violet-900/10 text-foreground',
+    iconCls: 'text-violetcustom',
+  },
+  warning: {
+    icon: AlertTriangle,
+    cls: 'border-ambercustom/30 bg-amber-900/10 text-foreground',
+    iconCls: 'text-ambercustom',
+  },
+  reward: {
+    icon: Gift,
+    cls: 'border-xplime/30 bg-lime-900/10 text-foreground',
+    iconCls: 'text-xp-lime',
+  },
 };
 
 export default function AnnouncementBanner({ announcements }: AnnouncementBannerProps) {

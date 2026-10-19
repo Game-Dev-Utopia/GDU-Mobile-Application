@@ -44,7 +44,9 @@ export default function CountUpNumber({
 
   return (
     <span className={`count-up-value ${className}`}>
-      {prefix}{display.toLocaleString()}{suffix}
+      {prefix}
+      {display.toLocaleString()}
+      {suffix}
     </span>
   );
 }

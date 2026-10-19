@@ -36,10 +36,7 @@ export default function XPBar({
         </div>
       )}
       <div className="xp-bar-track" style={{ height: `${height}px` }}>
-        <div
-          className="xp-bar-fill"
-          style={{ width: `${displayPct}%`, height: `${height}px` }}
-        />
+        <div className="xp-bar-fill" style={{ width: `${displayPct}%`, height: `${height}px` }} />
       </div>
     </div>
   );

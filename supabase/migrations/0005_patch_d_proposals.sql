@@ -9,13 +9,14 @@ create table activity_proposals (
   proposed_by uuid references profiles(id) not null,
   name text not null,
   category text not null check (category in (
-    'technology_innovation_wisdom',
-    'motivation_initiative_learning_mindset',
-    'social_soft_skills',
-    'leadership_management'
+    'technical',
+    'social',
+    'soft',
+    'management'
   )),
   subcategory_id uuid references activity_subcategories(id),
   domain_id uuid references domains(id),
+  kind text not null default 'increment' check (kind in ('increment')),
   exp_min integer not null,
   exp_max integer not null,
   season_cap integer,
@@ -93,6 +94,7 @@ create function propose_activity(
   p_category text,
   p_subcategory_id uuid,
   p_domain_id uuid,
+  p_kind text,
   p_exp_min integer,
   p_exp_max integer,
   p_season_cap integer,
@@ -123,10 +125,10 @@ begin
   end if;
 
   insert into activity_proposals (proposed_by, name, category, subcategory_id, domain_id,
-                                  exp_min, exp_max, season_cap, difficulty, evidence_required,
+                                  kind, exp_min, exp_max, season_cap, difficulty, evidence_required,
                                   approvers_needed, description, justification, status)
   values (auth.uid(), p_name, p_category, p_subcategory_id, p_domain_id,
-          p_exp_min, p_exp_max, p_season_cap, p_difficulty, p_evidence_required,
+          p_kind, p_exp_min, p_exp_max, p_season_cap, p_difficulty, p_evidence_required,
           p_approvers_needed, p_description, p_justification, 'proposed')
   returning id into v_proposal_id;
 

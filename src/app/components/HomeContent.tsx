@@ -15,6 +15,7 @@ import WeeklyXPChart from './WeeklyXPChart';
 import RecentTransactionsFeed from './RecentTransactionsFeed';
 import ActivitySpotlights from './ActivitySpotlights';
 import AnnouncementBanner from './AnnouncementBanner';
+import CoachCard from './CoachCard';
 
 export default function HomeContent() {
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,9 @@ export default function HomeContent() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) return <HomePageSkeleton />;
@@ -60,7 +63,12 @@ export default function HomeContent() {
             Welcome back, <span className="text-violetcustom">{member.name.split(' ')[0]}</span> 👾
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {new Date().toLocaleDateString('en-GB', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}
             {' · '}
             <span className="text-foreground font-medium">{member.branch}</span> Branch
           </p>
@@ -92,6 +100,9 @@ export default function HomeContent() {
 
       {/* Activity Spotlights */}
       <ActivitySpotlights activities={spotlights} />
+
+      {/* Coach Card */}
+      <CoachCard />
     </div>
   );
 }

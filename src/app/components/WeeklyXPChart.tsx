@@ -15,7 +15,15 @@ interface WeeklyXPChartProps {
   data: WeeklyXPPoint[];
 }
 
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+function CustomTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: { value: number }[];
+  label?: string;
+}) {
   if (!active || !payload || !payload.length) return null;
   return (
     <div className="card-base px-3 py-2.5 shadow-card text-sm">

@@ -58,8 +58,12 @@ export default function OnboardingStep1Branch({ selected, onNext }: Props) {
               <div className="font-pixel text-lg font-bold mb-1" style={{ color: branch.color }}>
                 {branch.name}
               </div>
-              <div className="text-sm text-foreground font-sans font-medium mb-2">{branch.fullName}</div>
-              <div className="text-xs text-muted-foreground font-sans">{branch.members} members</div>
+              <div className="text-sm text-foreground font-sans font-medium mb-2">
+                {branch.fullName}
+              </div>
+              <div className="text-xs text-muted-foreground font-sans">
+                {branch.members} members
+              </div>
               {active && (
                 <div
                   className="mt-3 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md"

@@ -4,7 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import XPBar from '@/components/ui/XPBar';
-import { getLeagueProgress, getLeagueTiers, type LeagueTierInfo, type LeagueProgress } from '@/lib/api';
+import {
+  getLeagueProgress,
+  getLeagueTiers,
+  type LeagueTierInfo,
+  type LeagueProgress,
+} from '@/lib/api';
 
 export default function LeaguesPage() {
   const { user, isLoading } = useAuth();
@@ -27,7 +32,9 @@ export default function LeaguesPage() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isLoading, user]);
 
   if (loading || !user || !progress) {
@@ -58,7 +65,8 @@ export default function LeaguesPage() {
             <div>
               <h2 className="font-heading font-bold text-ink">Your League</h2>
               <p className="text-mute mb-1">
-                You're in <span className="font-bold text-accent">{currentTier.displayName}</span> league
+                You're in <span className="font-bold text-accent">{currentTier.displayName}</span>{' '}
+                league
               </p>
               <p className="text-xs text-mute font-mono">
                 {user.totalExp.toLocaleString()} total EXP
@@ -109,13 +117,13 @@ export default function LeaguesPage() {
                     >
                       {tier.displayName[0].toUpperCase()}
                     </div>
-                    <span className={`font-heading font-bold ${isUnlocked ? 'text-ink' : 'text-mute'}`}>
+                    <span
+                      className={`font-heading font-bold ${isUnlocked ? 'text-ink' : 'text-mute'}`}
+                    >
                       {tier.displayName}
                     </span>
                   </div>
-                  {!isUnlocked && (
-                    <span className="text-xs text-mute">Locked</span>
-                  )}
+                  {!isUnlocked && <span className="text-xs text-mute">Locked</span>}
                 </div>
 
                 <div className="space-y-3">

@@ -22,16 +22,17 @@
 -- Aryan - Coding Sub Head (domain_head, Game Dev (Coding))
 -- Pushkar - Design Sub Head (domain_head, Design & Digital Arts)
 -- Tanishq - External Affairs Sub Head (domain_head, Eternal Affairs)
+-- Bhavesh - RnD Sub Head (domain_head, Research & Development (R&D))
+-- Ananya - Content Creation Sub Head (domain_head, Content Creation)
+-- Tanishq - Marketing Sub Head (domain_head, Marketing)
+-- Raman - Web & DevOps Sub Head (domain_head, Web & DevOps)
+-- Hussain - Coding Sub Head (domain_head, Game Dev (Coding))
+-- Adwaiy - Design Sub Head (domain_head, Design & Digital Arts)
 
 -- ============================================================
 -- Council Heads - GDU IIITK (branch scope)
 -- ============================================================
--- Bhavesh - RnD (domain_head, Research & Development (R&D))
--- Ananya - Content Creation (domain_head, Content Creation)
--- Tanishq - Marketing (domain_head, Marketing)
--- Raman - Web & DevOps (domain_head, Web & DevOps)
--- Hussain - Coding (domain_head, Game Dev (Coding))
--- Adwaiy - Design (domain_head, Design & Digital Arts)
+-- (blank — no IIITK council head data available)
 
 -- ============================================================
 -- Template: Replace PLACEHOLDER_AUTH_USER_ID with actual IDs
@@ -47,7 +48,7 @@ insert into role_assignments (profile_id, role, scope, scope_entity_id, granted_
 ('PLACEHOLDER_Mihir_Ranade_auth_id', 'board_member', 'org', null, null, true),
 ('PLACEHOLDER_Prajwal_Pawar_auth_id', 'board_member', 'org', null, null, true),
 
--- GDU PICT Council
+-- GDU PICT Council Members
 ('PLACEHOLDER_Bhuvan_auth_id', 'council_member', 'branch', (select id from branches where name = 'GDU PICT'), null, true),
 ('PLACEHOLDER_Pushkar_auth_id', 'council_member', 'branch', (select id from branches where name = 'GDU PICT'), null, true),
 ('PLACEHOLDER_Aashita_auth_id', 'council_member', 'branch', (select id from branches where name = 'GDU PICT'), null, true),
@@ -58,11 +59,11 @@ insert into role_assignments (profile_id, role, scope, scope_entity_id, granted_
 ('PLACEHOLDER_Pushkar_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Design & Digital Arts' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
 ('PLACEHOLDER_Tanishq_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Eternal Affairs' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
 
--- GDU IIITK Domain Heads
-('PLACEHOLDER_Bhavesh_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Research & Development (R&D)' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true),
-('PLACEHOLDER_Ananya_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Content Creation' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true),
-('PLACEHOLDER_Tanishq_IIITK_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Marketing' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true),
-('PLACEHOLDER_Raman_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Web & DevOps' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true),
-('PLACEHOLDER_Hussain_IIITK_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Game Dev (Coding)' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true),
-('PLACEHOLDER_Adwaiy_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Design & Digital Arts' and branch_id = (select id from branches where name = 'GDU IIITK')), null, true);
+-- Appended IIITK data — now PICT domain heads
+('PLACEHOLDER_Bhavesh_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Research & Development (R&D)' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
+('PLACEHOLDER_Ananya_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Content Creation' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
+('PLACEHOLDER_Tanishq_IIITK_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Marketing' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
+('PLACEHOLDER_Raman_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Web & DevOps' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
+('PLACEHOLDER_Hussain_IIITK_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Game Dev (Coding)' and branch_id = (select id from branches where name = 'GDU PICT')), null, true),
+('PLACEHOLDER_Adwaiy_auth_id', 'domain_head', 'domain', (select id from domains where name = 'Design & Digital Arts' and branch_id = (select id from branches where name = 'GDU PICT')), null, true);
 */

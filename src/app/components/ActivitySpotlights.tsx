@@ -13,8 +13,10 @@ function DeadlineCountdown({ deadline }: { deadline: string }) {
   const days = Math.floor(diff / 86_400_000);
   const hours = Math.floor((diff % 86_400_000) / 3_600_000);
   if (diff < 0) return <span className="text-rosecustom text-[11px] font-medium">Expired</span>;
-  if (days === 0) return <span className="text-rosecustom text-[11px] font-medium">{hours}h left</span>;
-  if (days <= 3) return <span className="text-ambercustom text-[11px] font-medium">{days}d left</span>;
+  if (days === 0)
+    return <span className="text-rosecustom text-[11px] font-medium">{hours}h left</span>;
+  if (days <= 3)
+    return <span className="text-ambercustom text-[11px] font-medium">{days}d left</span>;
   return <span className="text-muted-foreground text-[11px]">{days}d left</span>;
 }
 
@@ -61,7 +63,9 @@ export default function ActivitySpotlights({ activities }: ActivitySpotlightsPro
               <h4 className="text-sm font-heading font-semibold text-foreground leading-snug group-hover:text-violetcustom transition-colors duration-150 line-clamp-2">
                 {act.title}
               </h4>
-              <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{act.description}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+                {act.description}
+              </p>
             </div>
             <div className="flex items-center justify-between mt-auto">
               <DifficultyStars level={act.difficulty} />

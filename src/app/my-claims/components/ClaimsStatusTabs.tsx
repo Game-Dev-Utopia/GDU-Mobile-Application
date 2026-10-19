@@ -45,9 +45,7 @@ export default function ClaimsStatusTabs({
             }`}
           >
             {tab.label}
-            {count > 0 && (
-              <span className="ml-1.5 opacity-70">{count}</span>
-            )}
+            {count > 0 && <span className="ml-1.5 opacity-70">{count}</span>}
           </button>
         );
       })}

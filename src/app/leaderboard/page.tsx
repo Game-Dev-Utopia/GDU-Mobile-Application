@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getLeaderboard, Branch, LeaderboardEntry, type LeaderboardGroup, type LeaderboardPeriod, type LeaderboardMetric } from '@/lib/api';
+import {
+  getLeaderboard,
+  Branch,
+  LeaderboardEntry,
+  type LeaderboardGroup,
+  type LeaderboardPeriod,
+  type LeaderboardMetric,
+} from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import AppIcon from '@/components/ui/AppIcon';
@@ -83,7 +90,7 @@ export default function LeaderboardPage() {
                   key={key}
                   onClick={() => setMetricFilter(key as LeaderboardMetric)}
                   className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                    metricFilter === key as LeaderboardMetric
+                    metricFilter === (key as LeaderboardMetric)
                       ? 'bg-primary text-white border-primary'
                       : 'bg-card text-ink border-line hover:bg-accent-soft'
                   }`}
@@ -98,7 +105,7 @@ export default function LeaderboardPage() {
                   key={key}
                   onClick={() => setPeriodFilter(key as LeaderboardPeriod)}
                   className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                    periodFilter === key as LeaderboardPeriod
+                    periodFilter === (key as LeaderboardPeriod)
                       ? 'bg-primary text-white border-primary'
                       : 'bg-card text-ink border-line hover:bg-accent-soft'
                   }`}
@@ -116,7 +123,7 @@ export default function LeaderboardPage() {
               key={key}
               onClick={() => setGroupFilter(key as LeaderboardGroup)}
               className={`px-4 py-2 rounded-xl border transition-colors ${
-                groupFilter === key as LeaderboardGroup
+                groupFilter === (key as LeaderboardGroup)
                   ? 'bg-primary text-white border-primary'
                   : 'bg-card text-ink border-line hover:bg-accent-soft'
               }`}
@@ -148,22 +155,25 @@ export default function LeaderboardPage() {
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Branch</th>
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">Level</th>
                   <th className="px-6 py-3 text-xs font-semibold text-mute uppercase">League</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">EXP</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">
+                    EXP
+                  </th>
                   {showPercentile && (
-                    <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">Percentile</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-mute uppercase text-right">
+                      Percentile
+                    </th>
                   )}
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.memberId} className="border-b border-line hover:bg-accent-soft transition-colors">
+                  <tr
+                    key={entry.memberId}
+                    className="border-b border-line hover:bg-accent-soft transition-colors"
+                  >
                     <td className="px-6 py-4 font-mono font-medium text-ink">{entry.rank}</td>
                     <td className="px-6 py-4 flex items-center gap-3">
-                      <img
-                        src={entry.avatar}
-                        alt={entry.name}
-                        className="w-10 h-10 rounded-full"
-                      />
+                      <img src={entry.avatar} alt={entry.name} className="w-10 h-10 rounded-full" />
                       <div>
                         <div className="font-medium text-ink">{entry.name}</div>
                         <div className="text-xs text-mute">@{entry.username}</div>

@@ -77,7 +77,10 @@ export default function OnboardingPage() {
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #7C5CFF, #22D3EE)' }}>
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #7C5CFF, #22D3EE)' }}
+          >
             <span className="font-pixel text-white text-[9px] font-bold">GDU</span>
           </div>
           <span className="font-heading font-bold text-base text-foreground">
@@ -86,14 +89,16 @@ export default function OnboardingPage() {
         </div>
         <div className="flex items-center gap-2">
           {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className="flex items-center gap-1"
-            >
+            <div key={s} className="flex items-center gap-1">
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold font-heading transition-all duration-300"
                 style={{
-                  background: s < step ? '#7C5CFF' : s === step ? 'rgba(124,92,255,0.2)' : 'rgba(255,255,255,0.05)',
+                  background:
+                    s < step
+                      ? '#7C5CFF'
+                      : s === step
+                        ? 'rgba(124,92,255,0.2)'
+                        : 'rgba(255,255,255,0.05)',
                   border: s <= step ? '1px solid #7C5CFF' : '1px solid rgba(255,255,255,0.1)',
                   color: s <= step ? '#fff' : '#64748B',
                 }}

@@ -4,7 +4,14 @@ import type { ActivityDomain, ActivityStatus } from '@/lib/api';
 import { SlidersHorizontal } from 'lucide-react';
 
 const DOMAINS: (ActivityDomain | 'all')[] = [
-  'all', 'Game Dev (Coding)', 'Web & DevOps', 'AI & ML', 'Marketing', 'Eternal Affairs', 'Design & Digital Arts', 'Research & Development (R&D)',
+  'all',
+  'Game Dev (Coding)',
+  'Web & DevOps',
+  'AI & ML',
+  'Marketing',
+  'Eternal Affairs',
+  'Design & Digital Arts',
+  'Research & Development (R&D)',
 ];
 
 const STATUSES: { value: ActivityStatus | 'all'; label: string }[] = [
@@ -72,7 +79,8 @@ export default function ActivityFilters({
               onClick={() => onDomainChange(d)}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150 ${
                 domainFilter === d
-                  ? 'bg-cyan-900/30 border border-cyancustom/40 text-cyan-accent' :'bg-muted/20 border border-border text-muted-foreground hover:text-foreground'
+                  ? 'bg-cyan-900/30 border border-cyancustom/40 text-cyan-accent'
+                  : 'bg-muted/20 border border-border text-muted-foreground hover:text-foreground'
               }`}
             >
               {d === 'all' ? 'All Domains' : d}

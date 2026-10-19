@@ -14,10 +14,12 @@ import {
   ClipboardList,
   Settings,
   Bell,
+  Clock,
+  BuildingIcon,
+  Gift,
 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
-
 
 interface NavItem {
   label: string;
@@ -29,18 +31,29 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'Activities', href: '/activities', icon: Zap, badge: 3 },
+  { label: 'Submit Claim', href: '/claims/new', icon: ClipboardList },
   { label: 'My Claims', href: '/my-claims', icon: FileCheck, badge: 2 },
   { label: 'Leaderboard', href: '/leaderboard', icon: Trophy },
   { label: 'Leagues', href: '/leagues', icon: Shield },
+  { label: 'Rewards', href: '/rewards', icon: Gift },
   { label: 'Profile', href: '/profile', icon: User },
+  { label: 'Standing', href: '/standing', icon: Clock },
+  { label: 'Branch Health', href: '/branch-health', icon: BuildingIcon },
+  { label: 'Governance', href: '/governance', icon: Settings },
 ];
 
 const APPROVER_ITEMS: NavItem[] = [
   { label: 'Review Queue', href: '/review', icon: ClipboardList, badge: 8 },
+  { label: 'Conduct Panel', href: '/conduct-panel', icon: Shield },
+  { label: 'Team Health', href: '/team-health', icon: Shield },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
   { label: 'Admin', href: '/admin', icon: Settings },
+  { label: 'Audit Trail', href: '/audit', icon: FileCheck },
+  { label: 'Penalties', href: '/penalties', icon: Shield },
+  { label: 'Compliance', href: '/compliance', icon: FileCheck },
+  { label: 'Cash Releases', href: '/cash', icon: Gift },
 ];
 
 interface SidebarProps {
@@ -51,8 +64,17 @@ export default function Sidebar({ activePath }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { user, isLoading } = useAuth();
 
-  const showApprover = user?.role === 'domain_head' || user?.role === 'team_lead' || user?.role === 'board' || user?.role === 'admin';
-  const showAdmin = user?.role === 'board' || user?.role === 'admin';
+  const userRoles = user?.roles || (user?.role ? [user.role] : []);
+  const showApprover = userRoles.some((r) =>
+    ['domain_head', 'team_lead', 'board', 'admin'].includes(r)
+  );
+  const showAdmin = userRoles.some((r) => ['board', 'admin'].includes(r));
+  const showConductPanel = userRoles.some((r) =>
+    ['board', 'admin', 'conduct_panel_member', 'domain_head', 'team_lead'].includes(r)
+  );
+  const showFinanceCompliance = userRoles.some((r) =>
+    ['board', 'admin', 'finance_compliance_officer'].includes(r)
+  );
 
   function isActive(href: string) {
     if (href === '/') return activePath === '/';
@@ -79,9 +101,7 @@ export default function Sidebar({ activePath }: SidebarProps) {
             </span>
           )}
         </span>
-        {!collapsed && (
-          <span className="text-sm font-medium font-sans truncate">{item.label}</span>
-        )}
+        {!collapsed && <span className="text-sm font-medium font-sans truncate">{item.label}</span>}
         {collapsed && (
           <span className="absolute left-full ml-3 px-2 py-1 bg-card border border-border rounded-md text-xs font-medium text-foreground whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 shadow-card">
             {item.label}
@@ -106,7 +126,9 @@ export default function Sidebar({ activePath }: SidebarProps) {
       `}
     >
       {/* Logo */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-border ${collapsed ? 'justify-center' : ''}`}>
+      <div
+        className={`flex items-center gap-3 px-4 py-5 border-b border-border ${collapsed ? 'justify-center' : ''}`}
+      >
         <AppLogo size={32} />
         {!collapsed && (
           <span className="font-heading font-bold text-lg text-foreground tracking-tight">
@@ -128,7 +150,7 @@ export default function Sidebar({ activePath }: SidebarProps) {
 
         <div className="my-3 border-t border-border" />
 
-        {showApprover && (
+        {(showApprover || showConductPanel) && (
           <>
             {!collapsed && (
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
@@ -143,7 +165,7 @@ export default function Sidebar({ activePath }: SidebarProps) {
 
         <div className="my-3 border-t border-border" />
 
-        {showAdmin && (
+        {(showAdmin || showFinanceCompliance) && (
           <>
             {!collapsed && (
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
@@ -170,6 +192,16 @@ export default function Sidebar({ activePath }: SidebarProps) {
             </span>
           </span>
           {!collapsed && <span className="text-sm font-medium">Notifications</span>}
+        </Link>
+
+        <Link
+          href="/settings/notifications"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg nav-item-inactive transition-all duration-150 group relative"
+        >
+          <span className="relative flex-shrink-0">
+            <Settings size={20} strokeWidth={2} />
+          </span>
+          {!collapsed && <span className="text-sm font-medium">Settings → Notifications</span>}
         </Link>
 
         <Link

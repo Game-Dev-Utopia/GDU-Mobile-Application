@@ -1,30 +1,42 @@
 // Backend integration point — Supabase-powered API calls
 
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/client';
 
-const supabase = createClient()
+const supabase = createClient();
 
-export type Branch = 'GDU PICT' | 'GDU IIITK'
+export type Branch = 'GDU PICT' | 'GDU IIITK';
 
-export type LeagueTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Emerald' | 'Diamond'
+export type LeagueTier = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Emerald' | 'Diamond';
 
 export type ActivityDomain =
-  | 'Game Dev (Coding)' | 'Web & DevOps' | 'AI & ML' | 'Marketing' | 'Eternal Affairs' | 'Design & Digital Arts' | 'Research & Development (R&D)'
+  | 'Game Dev (Coding)'
+  | 'Web & DevOps'
+  | 'AI & ML'
+  | 'Marketing'
+  | 'Eternal Affairs'
+  | 'Design & Digital Arts'
+  | 'Research & Development (R&D)';
 
-export type ActivityDifficulty = 1 | 2 | 3 | 4 | 5
+export type ActivityDifficulty = 1 | 2 | 3 | 4 | 5;
 
-export type ActivityStatus = 'open' | 'claimed' | 'closed' | 'upcoming'
+export type ActivityStatus = 'open' | 'claimed' | 'closed' | 'upcoming';
 
-export type ClaimStatus = 'submitted' | 'under_review' | 'approved' | 'rejected'
+export type ClaimStatus =
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'awaiting_confirmation';
 
 export type ViewAsRole =
-  | 'member' | 'domain_head' | 'branch_president' | 'board' | 'faculty' | 'admin'
+  | 'member'
+  | 'domain_head'
+  | 'branch_president'
+  | 'board'
+  | 'faculty'
+  | 'admin';
 
-export type ExpCategory =
-  | 'technology_innovation_wisdom'
-  | 'motivation_initiative_learning_mindset'
-  | 'social_soft_skills'
-  | 'leadership_management'
+export type ExpCategory = 'technical' | 'social' | 'soft' | 'management';
 
 export interface Member {
   id: string;
@@ -70,6 +82,8 @@ export interface ActivityType {
   id: string;
   name: string;
   category: ExpCategory;
+  subcategoryId: string | null;
+  kind: string;
   domain: ActivityDomain;
   expMin: number;
   expMax: number;
@@ -94,9 +108,13 @@ export interface Activity {
   id: string;
   title: string;
   description: string;
+  category: ExpCategory;
+  subcategoryId: string | null;
   domain: ActivityDomain;
   difficulty: ActivityDifficulty;
   xpReward: number;
+  expMin: number;
+  expMax: number;
   bonusXP?: number;
   status: ActivityStatus;
   deadline: string;
@@ -119,12 +137,18 @@ export interface Claim {
   submittedAt: string;
   status: ClaimStatus;
   proofUrl: string;
+  proofFiles: ProofFile[];
   notes: string;
   reviewerId?: string;
   reviewerName?: string;
   reviewedAt?: string;
   feedback?: string;
   xpCredited?: number;
+  submittedOnBehalfOf?: string;
+  submittedBy?: string;
+  submittedByName?: string;
+  confirmationRequired: boolean;
+  confirmationResponded: boolean;
 }
 
 export interface LeaderboardEntry {
@@ -157,12 +181,17 @@ export interface OnboardingPayload {
 
 // ─── Helper: map DB profile to Member type ──────────────────────────────
 
-function mapProfileToMember(profile: any, userRoles: string[] = [], userScopes: string[] = []): Member {
+function mapProfileToMember(
+  profile: any,
+  userRoles: string[] = [],
+  userScopes: string[] = []
+): Member {
   return {
     id: profile.id,
     name: profile.display_name || profile.username,
     username: profile.username,
-    avatar: profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`,
+    avatar:
+      profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`,
     branch: (profile.branch_name as Branch) || 'GDU PICT',
     domain: (profile.domain_name as ActivityDomain) || 'Game Dev (Coding)',
     totalXP: profile.total_exp ?? 0,
@@ -180,52 +209,59 @@ function mapProfileToMember(profile: any, userRoles: string[] = [], userScopes: 
     role: (profile.role as ViewAsRole) || 'member',
     roles: userRoles,
     scopes: userScopes,
-  }
+  };
 }
 
 // ─── API Functions ─────────────────────────────────────────────────────
 
 export async function getCurrentMember(): Promise<Member> {
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) throw new Error('Not authenticated')
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Not authenticated');
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select(`
+    .select(
+      `
       *,
       branches ( name ),
       domains ( name )
-    `)
+    `
+    )
     .eq('id', user.id)
-    .single()
+    .single();
 
-  if (error || !profile) throw new Error('Profile not found')
+  if (error || !profile) throw new Error('Profile not found');
 
   // Fetch role assignments for RBAC
   const { data: roleAssignments } = await supabase
     .from('role_assignments')
     .select('role, scope')
     .eq('profile_id', user.id)
-    .eq('is_active', true)
+    .eq('is_active', true);
 
-  const userRoles = roleAssignments?.map((ra: any) => ra.role) || [(profile.role as ViewAsRole) || 'member']
-  const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self']
+  const userRoles = roleAssignments?.map((ra: any) => ra.role) || [
+    (profile.role as ViewAsRole) || 'member',
+  ];
+  const userScopes = roleAssignments?.map((ra: any) => ra.scope) || ['self'];
 
   // Attach branch_name and domain_name from joins
   const profileWithNames = {
     ...profile,
     branch_name: profile.branches?.name,
     domain_name: profile.domains?.name,
-  }
+  };
 
-  const levelInfo = xpToLevel(profile.total_exp ?? 0)
+  const levelInfo = xpToLevel(profile.total_exp ?? 0);
 
   return {
     ...mapProfileToMember(profileWithNames, userRoles, userScopes),
     level: levelInfo.level,
     xpInLevel: levelInfo.xpInLevel,
     xpToNextLevel: levelInfo.xpToNextLevel,
-  }
+  };
 }
 
 // ─── Level Calculation (Quadratic Curve) ─────────────────────────────────
@@ -235,28 +271,28 @@ export async function getCurrentMember(): Promise<Member> {
 // Early levels are fast (motivation), later levels get harder (retention)
 
 export interface LevelInfo {
-  level: number
-  xpInLevel: number
-  xpToNextLevel: number
-  progressPercent: number
+  level: number;
+  xpInLevel: number;
+  xpToNextLevel: number;
+  progressPercent: number;
 }
 
 export function xpToLevel(totalXP: number): LevelInfo {
   // Solve 50 * L * (L-1) <= totalXP for L
   // L = floor((1 + sqrt(1 + 8 * totalXP / 100)) / 2)
-  const discriminant = 1 + 8 * totalXP / 100
-  const level = Math.floor((1 + Math.sqrt(Math.max(0, discriminant))) / 2)
-  const cumulativeAtLevel = 50 * level * (level - 1)
-  const cumulativeAtNextLevel = 50 * (level + 1) * level
-  const xpInLevel = totalXP - cumulativeAtLevel
-  const xpToNextLevel = cumulativeAtNextLevel - cumulativeAtLevel
+  const discriminant = 1 + (8 * totalXP) / 100;
+  const level = Math.floor((1 + Math.sqrt(Math.max(0, discriminant))) / 2);
+  const cumulativeAtLevel = 50 * level * (level - 1);
+  const cumulativeAtNextLevel = 50 * (level + 1) * level;
+  const xpInLevel = totalXP - cumulativeAtLevel;
+  const xpToNextLevel = cumulativeAtNextLevel - cumulativeAtLevel;
   const progressPercent =
-    xpToNextLevel > 0 ? Math.min(100, Math.max(0, (xpInLevel / xpToNextLevel) * 100)) : 100
-  return { level, xpInLevel, xpToNextLevel, progressPercent }
+    xpToNextLevel > 0 ? Math.min(100, Math.max(0, (xpInLevel / xpToNextLevel) * 100)) : 100;
+  return { level, xpInLevel, xpToNextLevel, progressPercent };
 }
 
 export function levelToXP(level: number): number {
-  return 50 * level * (level - 1)
+  return 50 * level * (level - 1);
 }
 
 // ─── Seed Data: Activity Type EXP Ranges ─────────────────────────────────
@@ -267,25 +303,25 @@ export function levelToXP(level: number): number {
 // - Season caps prevent spam; low-effort activities have higher caps
 
 export const SEED_ACTIVITY_TYPES: Array<{
-  name: string
-  category: ExpCategory
-  domain: ActivityDomain
-  expMin: number
-  expMax: number
-  seasonCap: number | null
-  difficulty: ActivityDifficulty
-  evidenceRequired: boolean
-  approversNeeded: number
-  description: string
-  submissionFormat: string
-  requirements: string[]
-  tags: string[]
-  postedBy: string
+  name: string;
+  category: ExpCategory;
+  domain: ActivityDomain;
+  expMin: number;
+  expMax: number;
+  seasonCap: number | null;
+  difficulty: ActivityDifficulty;
+  evidenceRequired: boolean;
+  approversNeeded: number;
+  description: string;
+  submissionFormat: string;
+  requirements: string[];
+  tags: string[];
+  postedBy: string;
 }> = [
   // TECHNOLOGY, INNOVATION & WISDOM
   {
     name: 'Game Jam Participation',
-    category: 'technology_innovation_wisdom',
+    category: 'technical',
     domain: 'Game Dev (Coding)',
     expMin: 100,
     expMax: 500,
@@ -301,7 +337,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Project Development',
-    category: 'technology_innovation_wisdom',
+    category: 'technical',
     domain: 'Game Dev (Coding)',
     expMin: 50,
     expMax: 200,
@@ -317,7 +353,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Bug Fix / QA',
-    category: 'technology_innovation_wisdom',
+    category: 'technical',
     domain: 'Web & DevOps',
     expMin: 25,
     expMax: 100,
@@ -333,7 +369,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'AI/ML Prototype',
-    category: 'technology_innovation_wisdom',
+    category: 'technical',
     domain: 'AI & ML',
     expMin: 75,
     expMax: 250,
@@ -349,7 +385,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Open Source PR',
-    category: 'technology_innovation_wisdom',
+    category: 'technical',
     domain: 'Web & DevOps',
     expMin: 50,
     expMax: 150,
@@ -367,7 +403,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   // MOTIVATION, INITIATIVE & LEARNING MINDSET
   {
     name: 'Blog Post / Technical Writing',
-    category: 'motivation_initiative_learning_mindset',
+    category: 'social',
     domain: 'Design & Digital Arts',
     expMin: 30,
     expMax: 100,
@@ -383,7 +419,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'SIG Session Conducted',
-    category: 'motivation_initiative_learning_mindset',
+    category: 'social',
     domain: 'Eternal Affairs',
     expMin: 40,
     expMax: 120,
@@ -399,7 +435,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Session Attendance',
-    category: 'motivation_initiative_learning_mindset',
+    category: 'social',
     domain: 'Eternal Affairs',
     expMin: 5,
     expMax: 25,
@@ -415,7 +451,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Tutorial Created',
-    category: 'motivation_initiative_learning_mindset',
+    category: 'social',
     domain: 'Design & Digital Arts',
     expMin: 60,
     expMax: 150,
@@ -433,7 +469,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   // SOCIAL & SOFT SKILLS
   {
     name: 'Mentoring',
-    category: 'social_soft_skills',
+    category: 'soft',
     domain: 'Eternal Affairs',
     expMin: 20,
     expMax: 80,
@@ -449,7 +485,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Community Discord Moderation',
-    category: 'social_soft_skills',
+    category: 'soft',
     domain: 'Eternal Affairs',
     expMin: 30,
     expMax: 100,
@@ -465,7 +501,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Social Media Post',
-    category: 'social_soft_skills',
+    category: 'soft',
     domain: 'Marketing',
     expMin: 10,
     expMax: 40,
@@ -481,7 +517,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Referral',
-    category: 'social_soft_skills',
+    category: 'soft',
     domain: 'Eternal Affairs',
     expMin: 0,
     expMax: 50,
@@ -499,7 +535,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   // LEADERSHIP & MANAGEMENT
   {
     name: 'Event Hosting',
-    category: 'leadership_management',
+    category: 'management',
     domain: 'Eternal Affairs',
     expMin: 25,
     expMax: 150,
@@ -515,7 +551,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Project Lead',
-    category: 'leadership_management',
+    category: 'management',
     domain: 'Game Dev (Coding)',
     expMin: 100,
     expMax: 300,
@@ -523,7 +559,8 @@ export const SEED_ACTIVITY_TYPES: Array<{
     difficulty: 5,
     evidenceRequired: true,
     approversNeeded: 2,
-    description: 'Lead a project team. Responsibility, delivery, and team satisfaction determine EXP.',
+    description:
+      'Lead a project team. Responsibility, delivery, and team satisfaction determine EXP.',
     submissionFormat: 'Project link + team feedback',
     requirements: ['Min 3 team members', 'Shipped milestone', 'Team retrospective'],
     tags: ['leadership', 'project-management', 'team-lead'],
@@ -531,7 +568,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Sponsorship Brought',
-    category: 'leadership_management',
+    category: 'management',
     domain: 'Marketing',
     expMin: 100,
     expMax: 300,
@@ -547,7 +584,7 @@ export const SEED_ACTIVITY_TYPES: Array<{
   },
   {
     name: 'Interview Panel',
-    category: 'leadership_management',
+    category: 'management',
     domain: 'Research & Development (R&D)',
     expMin: 30,
     expMax: 100,
@@ -555,13 +592,14 @@ export const SEED_ACTIVITY_TYPES: Array<{
     difficulty: 3,
     evidenceRequired: true,
     approversNeeded: 1,
-    description: 'Serve on an interview panel for new members or positions. Fairness and thoroughness matter.',
+    description:
+      'Serve on an interview panel for new members or positions. Fairness and thoroughness matter.',
     submissionFormat: 'Interview feedback form + panel confirmation',
     requirements: ['Min 2 interviews', 'Completed feedback forms'],
     tags: ['interview', 'evaluation', 'panel'],
     postedBy: 'Board',
   },
-]
+];
 
 // ─── API Functions ─────────────────────────────────────────────────────
 
@@ -572,48 +610,52 @@ export async function getActivities(filters?: {
   branch?: Branch | 'all';
   search?: string;
 }): Promise<Activity[]> {
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Get activity types from Supabase with real EXP ranges and season caps
   const { data: activityTypes, error } = await supabase
     .from('activity_types')
-    .select(`
+    .select(
+      `
       *,
       domains ( name )
-    `)
-    .eq('is_active', true)
+    `
+    )
+    .eq('is_active', true);
 
   if (error || !activityTypes) {
     // Fallback to mock seed data if DB not yet seeded
-    return seedActivitiesToActivity(filters)
+    return seedActivitiesToActivity(filters);
   }
 
   // Get current season window (rolling 90 days, matching Standing window)
-  const seasonStart = new Date()
-  seasonStart.setDate(seasonStart.getDate() - 90)
+  const seasonStart = new Date();
+  seasonStart.setDate(seasonStart.getDate() - 90);
 
   // Count user's approved/submitted claims per activity type in current season
-  let claimsCount: Record<string, number> = {}
+  const claimsCount: Record<string, number> = {};
   if (user) {
     const { data: claims } = await supabase
       .from('claims')
       .select('activity_type_id, status')
       .eq('claimant_id', user.id)
-      .gte('created_at', seasonStart.toISOString())
+      .gte('created_at', seasonStart.toISOString());
 
     if (claims) {
       for (const claim of claims) {
         if (claim.status === 'approved' || claim.status === 'submitted') {
-          claimsCount[claim.activity_type_id] = (claimsCount[claim.activity_type_id] || 0) + 1
+          claimsCount[claim.activity_type_id] = (claimsCount[claim.activity_type_id] || 0) + 1;
         }
       }
     }
   }
 
   const activities: Activity[] = activityTypes.map((at: any) => {
-    const used = claimsCount[at.id] || 0
-    const remainingCap = at.season_cap ? Math.max(0, at.season_cap - used) : null
-    const xpReward = Math.floor((at.exp_min + at.exp_max) / 2) // midpoint as suggested XP
+    const used = claimsCount[at.id] || 0;
+    const remainingCap = at.season_cap ? Math.max(0, at.season_cap - used) : null;
+    const xpReward = Math.floor((at.exp_min + at.exp_max) / 2); // midpoint as suggested XP
 
     return {
       id: at.id,
@@ -632,26 +674,26 @@ export async function getActivities(filters?: {
       branch: 'all',
       postedBy: at.posted_by || 'System',
       postedAt: at.created_at,
-    }
-  })
+    };
+  });
 
   // Apply filters
-  let results = activities
-  if (filters?.domain) results = results.filter((a) => a.domain === filters.domain)
-  if (filters?.status) results = results.filter((a) => a.status === filters.status)
-  if (filters?.difficulty) results = results.filter((a) => a.difficulty === filters.difficulty)
+  let results = activities;
+  if (filters?.domain) results = results.filter((a) => a.domain === filters.domain);
+  if (filters?.status) results = results.filter((a) => a.status === filters.status);
+  if (filters?.difficulty) results = results.filter((a) => a.difficulty === filters.difficulty);
   if (filters?.branch && filters.branch !== 'all')
-    results = results.filter((a) => a.branch === filters.branch || a.branch === 'all')
+    results = results.filter((a) => a.branch === filters.branch || a.branch === 'all');
   if (filters?.search) {
-    const q = filters.search.toLowerCase()
+    const q = filters.search.toLowerCase();
     results = results.filter(
       (a) =>
         a.title.toLowerCase().includes(q) ||
         a.description.toLowerCase().includes(q) ||
         a.tags.some((t) => t.includes(q))
-    )
+    );
   }
-  return results
+  return results;
 }
 
 function seedActivitiesToActivity(filters?: {
@@ -665,7 +707,8 @@ function seedActivitiesToActivity(filters?: {
     {
       id: 'act-001',
       title: 'Global Game Jam 2026 — Team Lead',
-      description: 'Lead a team of 3–5 members through the 48-hour Global Game Jam. Submit a playable build with a devlog.',
+      description:
+        'Lead a team of 3–5 members through the 48-hour Global Game Jam. Submit a playable build with a devlog.',
       domain: 'Game Dev (Coding)',
       difficulty: 5,
       xpReward: 500,
@@ -673,7 +716,12 @@ function seedActivitiesToActivity(filters?: {
       status: 'open',
       deadline: '2026-10-15T23:59:00Z',
       submissionFormat: 'itch.io link + devlog PDF',
-      requirements: ['Minimum team of 3 members', 'All members must be GDU registered', 'Playable web build required', 'Devlog min 500 words'],
+      requirements: [
+        'Minimum team of 3 members',
+        'All members must be GDU registered',
+        'Playable web build required',
+        'Devlog min 500 words',
+      ],
       tags: ['jam', 'team-lead', 'high-xp'],
       claimedCount: 7,
       maxClaims: 10,
@@ -684,14 +732,19 @@ function seedActivitiesToActivity(filters?: {
     {
       id: 'act-002',
       title: 'Pixel Art Character Sheet',
-      description: 'Create a character sheet with idle, walk, and attack animations. Min 32×32px sprite, 4-directional.',
+      description:
+        'Create a character sheet with idle, walk, and attack animations. Min 32×32px sprite, 4-directional.',
       domain: 'Design & Digital Arts',
       difficulty: 3,
       xpReward: 200,
       status: 'open',
       deadline: '2026-10-10T23:59:00Z',
       submissionFormat: 'PNG sprite sheet + GIF preview',
-      requirements: ['Min 32×32px per frame', '4-directional movement', 'At least 3 animation states'],
+      requirements: [
+        'Min 32×32px per frame',
+        '4-directional movement',
+        'At least 3 animation states',
+      ],
       tags: ['pixel-art', 'animation', 'character'],
       claimedCount: 14,
       branch: 'all',
@@ -701,7 +754,8 @@ function seedActivitiesToActivity(filters?: {
     {
       id: 'act-003',
       title: 'Unity Shader Workshop Recap',
-      description: 'Write a structured recap of the Unity Shader workshop including code snippets, screenshots, and key takeaways.',
+      description:
+        'Write a structured recap of the Unity Shader workshop including code snippets, screenshots, and key takeaways.',
       domain: 'Web & DevOps',
       difficulty: 2,
       xpReward: 150,
@@ -719,7 +773,8 @@ function seedActivitiesToActivity(filters?: {
     {
       id: 'act-004',
       title: 'Game Audio SFX Pack — Horror Theme',
-      description: 'Produce a minimum of 10 original SFX for a horror-themed game. Must be royalty-free and CC0 licensed.',
+      description:
+        'Produce a minimum of 10 original SFX for a horror-themed game. Must be royalty-free and CC0 licensed.',
       domain: 'Design & Digital Arts',
       difficulty: 4,
       xpReward: 300,
@@ -727,7 +782,12 @@ function seedActivitiesToActivity(filters?: {
       status: 'open',
       deadline: '2026-10-12T23:59:00Z',
       submissionFormat: 'ZIP file via Google Drive',
-      requirements: ['Min 10 SFX files', 'WAV or OGG format', 'CC0 license declaration', 'Naming convention: sfx_[name]_v1'],
+      requirements: [
+        'Min 10 SFX files',
+        'WAV or OGG format',
+        'CC0 license declaration',
+        'Naming convention: sfx_[name]_v1',
+      ],
       tags: ['audio', 'sfx', 'horror', 'cc0'],
       claimedCount: 3,
       branch: 'all',
@@ -737,14 +797,20 @@ function seedActivitiesToActivity(filters?: {
     {
       id: 'act-005',
       title: 'Social Media Campaign — GDU Monthly Digest',
-      description: 'Design and post 4 Instagram stories + 1 carousel post for the GDU Monthly Digest. Use provided brand kit.',
+      description:
+        'Design and post 4 Instagram stories + 1 carousel post for the GDU Monthly Digest. Use provided brand kit.',
       domain: 'Marketing',
       difficulty: 2,
       xpReward: 120,
       status: 'open',
       deadline: '2026-10-05T23:59:00Z',
       submissionFormat: 'Screenshot of live posts + Canva file link',
-      requirements: ['4 Instagram stories', '1 carousel post (min 5 slides)', 'Use GDU brand kit', 'Tag @gamedevutopia'],
+      requirements: [
+        '4 Instagram stories',
+        '1 carousel post (min 5 slides)',
+        'Use GDU brand kit',
+        'Tag @gamedevutopia',
+      ],
       tags: ['social-media', 'design', 'marketing'],
       claimedCount: 2,
       maxClaims: 3,
@@ -754,39 +820,41 @@ function seedActivitiesToActivity(filters?: {
     },
   ];
 
-  let results = [...MOCK_ACTIVITIES]
-  if (filters?.domain) results = results.filter((a) => a.domain === filters.domain)
-  if (filters?.status) results = results.filter((a) => a.status === filters.status)
-  if (filters?.difficulty) results = results.filter((a) => a.difficulty === filters.difficulty)
+  let results = [...MOCK_ACTIVITIES];
+  if (filters?.domain) results = results.filter((a) => a.domain === filters.domain);
+  if (filters?.status) results = results.filter((a) => a.status === filters.status);
+  if (filters?.difficulty) results = results.filter((a) => a.difficulty === filters.difficulty);
   if (filters?.branch && filters.branch !== 'all')
-    results = results.filter((a) => a.branch === filters.branch || a.branch === 'all')
+    results = results.filter((a) => a.branch === filters.branch || a.branch === 'all');
   if (filters?.search) {
-    const q = filters.search.toLowerCase()
+    const q = filters.search.toLowerCase();
     results = results.filter(
       (a) =>
         a.title.toLowerCase().includes(q) ||
         a.description.toLowerCase().includes(q) ||
         a.tags.some((t) => t.includes(q))
-    )
+    );
   }
-  return Promise.resolve(results)
+  return Promise.resolve(results);
 }
 
 export async function getWeeklyXP(): Promise<WeeklyXPPoint[]> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
 
-  const now = new Date()
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const result: WeeklyXPPoint[] = []
+  const now = new Date();
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const result: WeeklyXPPoint[] = [];
 
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    d.setHours(0, 0, 0, 0)
-    const start = d.toISOString()
-    d.setDate(d.getDate() + 1)
-    const end = d.toISOString()
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    const start = d.toISOString();
+    d.setDate(d.getDate() + 1);
+    const end = d.toISOString();
 
     const { data: entries } = await supabase
       .from('ledger_entries')
@@ -794,28 +862,31 @@ export async function getWeeklyXP(): Promise<WeeklyXPPoint[]> {
       .eq('member_id', user.id)
       .gte('created_at', start)
       .lt('created_at', end)
-      .eq('source', 'claim')
+      .eq('source', 'claim');
 
-    const xp = entries?.reduce((sum, e) => sum + (e.amount > 0 ? e.amount : 0), 0) || 0
-    const activities = entries?.length || 0
+    const xp = entries?.reduce((sum, e) => sum + (e.amount > 0 ? e.amount : 0), 0) || 0;
+    const activities = entries?.length || 0;
 
     result.push({
       day: days[d.getDay()],
       xp,
       activities,
-    })
+    });
   }
 
-  return result
+  return result;
 }
 
 export async function getRecentTransactions(limit = 5): Promise<XPTransaction[]> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
 
   const { data: entries, error } = await supabase
     .from('ledger_entries')
-    .select(`
+    .select(
+      `
       *,
       claims (
         id,
@@ -823,13 +894,14 @@ export async function getRecentTransactions(limit = 5): Promise<XPTransaction[]>
         activity_type_id,
         activity_types ( name, domain_id )
       )
-    `)
+    `
+    )
     .eq('member_id', user.id)
     .eq('source', 'claim')
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(limit);
 
-  if (error || !entries) return []
+  if (error || !entries) return [];
 
   return entries.map((e: any) => ({
     id: e.id,
@@ -839,21 +911,20 @@ export async function getRecentTransactions(limit = 5): Promise<XPTransaction[]>
     xpEarned: e.amount > 0 ? e.amount : 0,
     timestamp: e.created_at,
     claimId: e.claim_id || '',
-  }))
+  }));
 }
 
 export async function getActivityTypes(): Promise<ActivityType[]> {
-  const { data, error } = await supabase
-    .from('activity_types')
-    .select('*')
-    .eq('is_active', true)
+  const { data, error } = await supabase.from('activity_types').select('*').eq('is_active', true);
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((a: any) => ({
     id: a.id,
     name: a.name,
-    category: a.category,
+    category: a.category as ExpCategory,
+    subcategoryId: a.subcategory_id || null,
+    kind: a.kind,
     domain: a.domain_id as ActivityDomain,
     expMin: a.exp_min,
     expMax: a.exp_max,
@@ -862,22 +933,20 @@ export async function getActivityTypes(): Promise<ActivityType[]> {
     evidenceRequired: a.evidence_required,
     approversNeeded: a.approvers_needed,
     isActive: a.is_active,
-  }))
+  }));
 }
 
 export async function getActivityById(id: string): Promise<ActivityType | null> {
-  const { data, error } = await supabase
-    .from('activity_types')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const { data, error } = await supabase.from('activity_types').select('*').eq('id', id).single();
 
-  if (error || !data) return null
+  if (error || !data) return null;
 
   return {
     id: data.id,
     name: data.name,
-    category: data.category,
+    category: data.category as ExpCategory,
+    subcategoryId: data.subcategory_id || null,
+    kind: data.kind,
     domain: data.domain_id as ActivityDomain,
     expMin: data.exp_min,
     expMax: data.exp_max,
@@ -886,7 +955,7 @@ export async function getActivityById(id: string): Promise<ActivityType | null> 
     evidenceRequired: data.evidence_required,
     approversNeeded: data.approvers_needed,
     isActive: data.is_active,
-  }
+  };
 }
 
 export async function getActivitySubcategories(): Promise<ActivitySubcategory[]> {
@@ -895,9 +964,9 @@ export async function getActivitySubcategories(): Promise<ActivitySubcategory[]>
     .select('*')
     .eq('is_active', true)
     .order('category', { ascending: true })
-    .order('sort_order', { ascending: true })
+    .order('sort_order', { ascending: true });
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((a: any) => ({
     id: a.id,
@@ -907,7 +976,7 @@ export async function getActivitySubcategories(): Promise<ActivitySubcategory[]>
     description: a.description,
     sortOrder: a.sort_order,
     isActive: a.is_active,
-  }))
+  }));
 }
 
 export async function getActivitiesByCategory(): Promise<
@@ -916,63 +985,70 @@ export async function getActivitiesByCategory(): Promise<
   const [subcategories, activityTypes] = await Promise.all([
     getActivitySubcategories(),
     getActivityTypes(),
-  ])
+  ]);
 
-  const result: Record<ExpCategory, { subcategory: ActivitySubcategory; activities: ActivityType[] }[]> = {
-    technology_innovation_wisdom: [],
-    motivation_initiative_learning_mindset: [],
-    social_soft_skills: [],
-    leadership_management: [],
-  }
+  const result: Record<
+    ExpCategory,
+    { subcategory: ActivitySubcategory; activities: ActivityType[] }[]
+  > = {
+    technical: [],
+    social: [],
+    soft: [],
+    management: [],
+  };
 
   // Group subcategories by category
-  const subcatsByCategory: Record<string, ActivitySubcategory[]> = {}
+  const subcatsByCategory: Record<string, ActivitySubcategory[]> = {};
   for (const sc of subcategories) {
-    if (!subcatsByCategory[sc.category]) subcatsByCategory[sc.category] = []
-    subcatsByCategory[sc.category].push(sc)
+    if (!subcatsByCategory[sc.category]) subcatsByCategory[sc.category] = [];
+    subcatsByCategory[sc.category].push(sc);
   }
 
   // Group activities by subcategory
-  const actsBySubcat: Record<string, ActivityType[]> = {}
+  const actsBySubcat: Record<string, ActivityType[]> = {};
   for (const at of activityTypes) {
-    if (!actsBySubcat[at.id]) actsBySubcat[at.id] = []
+    if (!actsBySubcat[at.id]) actsBySubcat[at.id] = [];
     // activity_types now references subcategory_id; if not set, skip grouping by subcat
-    actsBySubcat[at.id].push(at)
+    actsBySubcat[at.id].push(at);
   }
 
   // Build result
   for (const category of Object.keys(result) as ExpCategory[]) {
-    const subcats = subcatsByCategory[category] || []
+    const subcats = subcatsByCategory[category] || [];
     result[category] = subcats.map((sc) => ({
       subcategory: sc,
       activities: activityTypes.filter((at) => at.domain === sc.name), // approximate mapping
-    }))
+    }));
   }
 
-  return result
+  return result;
 }
 
 export async function getMyClaims(): Promise<Claim[]> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
 
   const { data: claims, error } = await supabase
     .from('claims')
-    .select(`
+    .select(
+      `
       *,
       activity_types ( name, domain_id ),
       profiles!claims_reviewer_id_fkey ( display_name )
-    `)
+    `
+    )
     .eq('claimant_id', user.id)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false });
 
-  if (error || !claims) return []
+  if (error || !claims) return [];
 
   return claims.map((c: any) => ({
     id: c.id,
     activityId: c.activity_type_id,
     activityTitle: c.title,
-    activityDomain: c.activity_types?.domain_id as ActivityDomain || 'Game Dev',
+    activityDomain: (c.activity_types?.domain_id as ActivityDomain) || 'Game Dev',
     xpReward: c.suggested_exp,
     submittedAt: c.created_at,
     status: c.status as ClaimStatus,
@@ -983,7 +1059,7 @@ export async function getMyClaims(): Promise<Claim[]> {
     reviewedAt: c.reviewed_at,
     feedback: c.review_reason,
     xpCredited: c.reviewed_score,
-  }))
+  }));
 }
 
 export async function submitClaim(data: {
@@ -997,13 +1073,15 @@ export async function submitClaim(data: {
   contributors: { memberId: string; sharePercent: number }[];
   submittedOnBehalfOf?: string;
 }): Promise<{ claimId: string; status: ClaimStatus }> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
-  const contributorsJson = data.contributors.map(c => ({
+  const contributorsJson = data.contributors.map((c) => ({
     member_id: c.memberId,
     share_percent: c.sharePercent,
-  }))
+  }));
 
   const { data: claimId, error } = await supabase.rpc('submit_claim', {
     p_activity_type_id: data.activityTypeId,
@@ -1015,12 +1093,12 @@ export async function submitClaim(data: {
     p_analysis_pointers: data.analysisPointers,
     p_contributors: contributorsJson,
     p_submitted_on_behalf_of: data.submittedOnBehalfOf ?? null,
-  })
+  });
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 
-  const status = data.submittedOnBehalfOf ? 'awaiting_confirmation' : 'submitted'
-  return { claimId: claimId as string, status: status as ClaimStatus }
+  const status = data.submittedOnBehalfOf ? 'awaiting_confirmation' : 'submitted';
+  return { claimId: claimId as string, status: status as ClaimStatus };
 }
 
 export async function reviewClaim(claimId: string, score: number, reason: string): Promise<void> {
@@ -1028,15 +1106,15 @@ export async function reviewClaim(claimId: string, score: number, reason: string
     p_claim_id: claimId,
     p_score: score,
     p_reason: reason,
-  })
+  });
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 }
 
 export async function getReviewQueue(): Promise<Claim[]> {
-  const { data: claims, error } = await supabase.rpc('list_my_review_queue')
+  const { data: claims, error } = await supabase.rpc('list_my_review_queue');
 
-  if (error || !claims) return []
+  if (error || !claims) return [];
 
   return claims.map((c: any) => ({
     id: c.id,
@@ -1053,21 +1131,21 @@ export async function getReviewQueue(): Promise<Claim[]> {
     reviewedAt: c.reviewed_at,
     feedback: c.review_reason,
     xpCredited: c.reviewed_score,
-  }))
+  }));
 }
 
 export async function finalizeClaim(claimId: string): Promise<void> {
-  const { error } = await supabase.rpc('finalize_claim', { p_claim_id: claimId })
-  if (error) throw new Error(error.message)
+  const { error } = await supabase.rpc('finalize_claim', { p_claim_id: claimId });
+  if (error) throw new Error(error.message);
 }
 
 export async function getAnnouncements(): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from('announcements')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false });
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((a: any) => ({
     id: a.id,
@@ -1075,7 +1153,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     body: a.body,
     type: a.type as Announcement['type'],
     createdAt: a.created_at,
-  }))
+  }));
 }
 
 export type LeaderboardGroup = 'all' | 'my_team' | 'my_level' | 'my_branch';
@@ -1133,9 +1211,7 @@ export async function getLeaderboard({
   // For lifetime metric, no date filter
   const useDateFilter = metric === 'season';
 
-  let query = supabase
-    .from('profiles')
-    .select(`
+  let query = supabase.from('profiles').select(`
       id,
       display_name,
       username,
@@ -1192,7 +1268,7 @@ export async function getLeaderboard({
       level: levelInfo.level,
       leagueTier: (p.league_tier as LeagueTier) || 'Bronze',
       streak: 0,
-      branch: (p.branches as any)?.name as Branch || 'GDU PICT',
+      branch: ((p.branches as any)?.name as Branch) || 'GDU PICT',
     };
   });
 
@@ -1232,12 +1308,14 @@ export async function getLeaderboard({
 }
 
 export async function getSpotlightActivities(): Promise<Activity[]> {
-  return getActivities()
+  return getActivities();
 }
 
 export async function saveOnboarding(data: OnboardingPayload): Promise<{ success: boolean }> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false };
 
   const { error } = await supabase
     .from('profiles')
@@ -1246,9 +1324,9 @@ export async function saveOnboarding(data: OnboardingPayload): Promise<{ success
       onboarding_data: data,
       branch_id: data.branch,
     })
-    .eq('id', user.id)
+    .eq('id', user.id);
 
-  return { success: !error }
+  return { success: !error };
 }
 
 export async function getLandingStats(): Promise<{
@@ -1256,20 +1334,21 @@ export async function getLandingStats(): Promise<{
   xpAwardedThisSeason: number;
   activeBranches: number;
 }> {
-  const { data: profiles } = await supabase.from('profiles').select('id')
+  const { data: profiles } = await supabase.from('profiles').select('id');
   const { data: entries } = await supabase
     .from('ledger_entries')
     .select('amount')
-    .eq('source', 'claim')
+    .eq('source', 'claim');
 
-  const totalMembers = profiles?.length || 0
-  const xpAwardedThisSeason = entries?.reduce((sum, e) => sum + (e.amount > 0 ? e.amount : 0), 0) || 0
+  const totalMembers = profiles?.length || 0;
+  const xpAwardedThisSeason =
+    entries?.reduce((sum, e) => sum + (e.amount > 0 ? e.amount : 0), 0) || 0;
 
   return {
     totalMembers,
     xpAwardedThisSeason,
     activeBranches: 2,
-  }
+  };
 }
 
 export interface LeagueTierInfo {
@@ -1293,9 +1372,9 @@ export async function getLeagueTiers(): Promise<LeagueTierInfo[]> {
   const { data, error } = await supabase
     .from('league_tiers')
     .select('*')
-    .order('sort_order', { ascending: true })
+    .order('sort_order', { ascending: true });
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((t: any) => ({
     name: t.name,
@@ -1305,20 +1384,22 @@ export async function getLeagueTiers(): Promise<LeagueTierInfo[]> {
     color: t.color,
     sortOrder: t.sort_order,
     isLocked: t.is_locked,
-  }))
+  }));
 }
 
 export async function getLeagueProgress(totalExp: number): Promise<LeagueProgress> {
   const tiers = await getLeagueTiers();
 
   // Find current tier
-  const currentTier = tiers
-    .filter((t) => !t.isLocked)
-    .find((t) => totalExp >= t.minExp && (t.maxExp === null || totalExp <= t.maxExp)) ?? tiers[0];
+  const currentTier =
+    tiers
+      .filter((t) => !t.isLocked)
+      .find((t) => totalExp >= t.minExp && (t.maxExp === null || totalExp <= t.maxExp)) ?? tiers[0];
 
   // Find next tier
   const currentIndex = tiers.findIndex((t) => t.name === currentTier.name);
-  const nextTier = currentIndex >= 0 && currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : null;
+  const nextTier =
+    currentIndex >= 0 && currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : null;
 
   // Calculate progress
   let progressPercent = 0;
@@ -1352,12 +1433,11 @@ export interface ProofFile {
   uploadedAt: string;
 }
 
-export async function uploadProof(
-  claimId: string,
-  files: File[]
-): Promise<ProofFile[]> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+export async function uploadProof(claimId: string, files: File[]): Promise<ProofFile[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
   const uploaded: ProofFile[] = [];
 
@@ -1377,15 +1457,11 @@ export async function uploadProof(
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
     const storagePath = `claims/${claimId}/${fileName}`;
 
-    const { data, error } = await supabase.storage
-      .from('claim_proofs')
-      .upload(storagePath, file);
+    const { data, error } = await supabase.storage.from('claim_proofs').upload(storagePath, file);
 
     if (error) throw new Error(error.message);
 
-    const { data: urlData } = await supabase.storage
-      .from('claim_proofs')
-      .getPublicUrl(storagePath);
+    const { data: urlData } = await supabase.storage.from('claim_proofs').getPublicUrl(storagePath);
 
     const { data: proofRecord, error: dbError } = await supabase
       .from('proof_files')
@@ -1501,8 +1577,10 @@ export async function proposeActivity(data: {
   description: string;
   justification: string;
 }): Promise<{ proposalId: string }> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
 
   const { data: proposalId, error } = await supabase.rpc('propose_activity', {
     p_name: data.name,
@@ -1517,17 +1595,17 @@ export async function proposeActivity(data: {
     p_approvers_needed: data.approversNeeded,
     p_description: data.description,
     p_justification: data.justification,
-  })
+  });
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(error.message);
 
-  return { proposalId: proposalId as string }
+  return { proposalId: proposalId as string };
 }
 
 export async function listActivityProposals(): Promise<ActivityProposal[]> {
-  const { data, error } = await supabase.rpc('list_activity_proposals')
+  const { data, error } = await supabase.rpc('list_activity_proposals');
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((p: any) => ({
     id: p.id,
@@ -1552,7 +1630,7 @@ export async function listActivityProposals(): Promise<ActivityProposal[]> {
     activityTypeId: p.activity_type_id,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
-  }))
+  }));
 }
 
 export async function approveActivityProposal(
@@ -1564,8 +1642,8 @@ export async function approveActivityProposal(
     p_proposal_id: proposalId,
     p_approve: approve,
     p_reason: reason,
-  })
-  if (error) throw new Error(error.message)
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function getApprovalItems(): Promise<ApprovalItem[]> {
@@ -1573,9 +1651,9 @@ export async function getApprovalItems(): Promise<ApprovalItem[]> {
     .from('approval_items')
     .select('*')
     .eq('status', 'pending')
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: true });
 
-  if (error || !data) return []
+  if (error || !data) return [];
 
   return data.map((a: any) => ({
     id: a.id,
@@ -1591,7 +1669,7 @@ export async function getApprovalItems(): Promise<ApprovalItem[]> {
     reviewReason: a.review_reason,
     scope: a.scope,
     createdAt: a.created_at,
-  }))
+  }));
 }
 
 // ─── Phase 2: Badges System ──────────────────────────────────────────────
@@ -1626,11 +1704,31 @@ export interface BadgeRarityConfig {
 }
 
 export const BADGE_RARITY_CONFIG: Record<Badge['rarity'], BadgeRarityConfig> = {
-  common: { label: 'Common', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' },
-  uncommon: { label: 'Uncommon', color: 'text-green-600', bg: 'bg-green-100', border: 'border-green-200' },
+  common: {
+    label: 'Common',
+    color: 'text-slate-600',
+    bg: 'bg-slate-100',
+    border: 'border-slate-200',
+  },
+  uncommon: {
+    label: 'Uncommon',
+    color: 'text-green-600',
+    bg: 'bg-green-100',
+    border: 'border-green-200',
+  },
   rare: { label: 'Rare', color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
-  epic: { label: 'Epic', color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
-  legendary: { label: 'Legendary', color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' },
+  epic: {
+    label: 'Epic',
+    color: 'text-purple-600',
+    bg: 'bg-purple-100',
+    border: 'border-purple-200',
+  },
+  legendary: {
+    label: 'Legendary',
+    color: 'text-amber-600',
+    bg: 'bg-amber-100',
+    border: 'border-amber-200',
+  },
 };
 
 export async function getBadges(): Promise<Badge[]> {
@@ -1658,16 +1756,20 @@ export async function getBadges(): Promise<Badge[]> {
 }
 
 export async function getMemberBadges(memberId?: string): Promise<MemberBadge[]> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const targetMemberId = memberId ?? user?.id;
   if (!targetMemberId) return [];
 
   const { data, error } = await supabase
     .from('member_badges')
-    .select(`
+    .select(
+      `
       *,
       badges (*)
-    `)
+    `
+    )
     .eq('memberId', targetMemberId)
     .order('earnedAt', { ascending: false });
 
@@ -1766,15 +1868,19 @@ export async function getQuests(): Promise<Quest[]> {
 }
 
 export async function getMemberQuests(): Promise<MemberQuest[]> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return [];
 
   const { data, error } = await supabase
     .from('member_quests')
-    .select(`
+    .select(
+      `
       *,
       quests (*)
-    `)
+    `
+    )
     .eq('memberId', user.id)
     .order('startedAt', { ascending: false });
 
@@ -1816,7 +1922,9 @@ export async function claimQuestReward(memberQuestId: string): Promise<number> {
 }
 
 export async function getOrCreateMemberQuest(questId: string): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data: mqId, error } = await supabase.rpc('get_or_create_member_quest', {
@@ -1825,4 +1933,815 @@ export async function getOrCreateMemberQuest(questId: string): Promise<string> {
   });
   if (error) throw new Error(error.message);
   return mqId as string;
+}
+
+// ─── Phase 6.1: Motions + Voting ────────────────────────────────────────
+
+export interface Motion {
+  id: string;
+  title: string;
+  text: string;
+  tier: 'ordinary' | 'serious' | 'constitutional' | 'recall';
+  jurisdiction: 'org' | 'branch' | 'concurrent';
+  status: 'draft' | 'open' | 'voting' | 'result' | 'closed';
+  createdBy: string;
+  proposerName: string;
+  createdAt: string;
+  openedAt: string | null;
+  closedAt: string | null;
+  result: string | null;
+  resultDetails: any;
+  attachmentUrls: string[];
+  voteCount: number;
+  objectionWindowDeadline: string | null;
+}
+
+export interface Ballot {
+  id: string;
+  motionId: string;
+  voterId: string;
+  vote: 'yes' | 'no' | 'abstain';
+  chamber: 'board' | 'council' | 'members';
+  weight: number;
+  createdAt: string;
+}
+
+export interface MotionConfig {
+  boardWeight: number;
+  councilWeight: number;
+  memberWeight: number;
+  boardQuorum: number;
+  councilQuorumPercent: number;
+  ordinaryThreshold: number;
+  seriousThreshold: number;
+  constitutionalThreshold: number;
+  recallThreshold: number;
+  recallBoardConcurrence: number;
+  shadowMode: boolean;
+}
+
+export interface MotionDiscussion {
+  id: string;
+  motionId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getMotions(): Promise<Motion[]> {
+  const { data, error } = await supabase
+    .from('motion_summary_view')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((m: any) => ({
+    id: m.id,
+    title: m.title,
+    text: m.text,
+    tier: m.tier,
+    jurisdiction: m.jurisdiction,
+    status: m.status,
+    createdBy: m.created_by,
+    proposerName: m.proposer_name,
+    createdAt: m.created_at,
+    openedAt: m.opened_at,
+    closedAt: m.closed_at,
+    result: m.result,
+    resultDetails: m.result_details,
+    attachmentUrls: m.attachment_urls,
+    voteCount: m.vote_count,
+    objectionWindowDeadline: m.objection_window_deadline,
+  }));
+}
+
+export async function getMotionById(motionId: string): Promise<Motion | null> {
+  const { data, error } = await supabase
+    .from('motion_summary_view')
+    .select('*')
+    .eq('id', motionId)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    title: data.title,
+    text: data.text,
+    tier: data.tier,
+    jurisdiction: data.jurisdiction,
+    status: data.status,
+    createdBy: data.created_by,
+    proposerName: data.proposer_name,
+    createdAt: data.created_at,
+    openedAt: data.opened_at,
+    closedAt: data.closed_at,
+    result: data.result,
+    resultDetails: data.result_details,
+    attachmentUrls: data.attachment_urls,
+    voteCount: data.vote_count,
+    objectionWindowDeadline: data.objection_window_deadline,
+  };
+}
+
+export async function createMotion(data: {
+  title: string;
+  text: string;
+  tier: Motion['tier'];
+  jurisdiction: Motion['jurisdiction'];
+  attachmentUrls?: string[];
+}): Promise<{ motionId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: motionId, error } = await supabase
+    .from('motions')
+    .insert({
+      title: data.title,
+      text: data.text,
+      tier: data.tier,
+      jurisdiction: data.jurisdiction,
+      attachment_urls: data.attachmentUrls ?? [],
+      created_by: user.id,
+      status: 'draft',
+    })
+    .select('id')
+    .single();
+
+  if (error || !motionId) throw new Error(error?.message || 'Failed to create motion');
+
+  return { motionId: motionId.id };
+}
+
+export async function openMotion(motionId: string): Promise<void> {
+  const { error } = await supabase
+    .from('motions')
+    .update({ status: 'open', opened_at: new Date().toISOString() })
+    .eq('id', motionId);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function castBallot(
+  motionId: string,
+  vote: 'yes' | 'no' | 'abstain',
+  chamber: 'board' | 'council' | 'members',
+  weight: number = 1
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.from('ballots').insert({
+    motion_id: motionId,
+    voter_id: user.id,
+    vote,
+    chamber,
+    weight,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function computeMotionResult(motionId: string): Promise<any> {
+  const { data: result, error } = await supabase.rpc('compute_motion_result', {
+    p_motion_id: motionId,
+  });
+  if (error) throw new Error(error.message);
+  return result;
+}
+
+export async function getMotionConfig(): Promise<MotionConfig | null> {
+  const { data, error } = await supabase
+    .from('motion_config')
+    .select('*')
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+
+  return {
+    boardWeight: data.board_weight,
+    councilWeight: data.council_weight,
+    memberWeight: data.member_weight,
+    boardQuorum: data.board_quorum,
+    councilQuorumPercent: data.council_quorum_percent,
+    ordinaryThreshold: data.ordinary_threshold,
+    seriousThreshold: data.serious_threshold,
+    constitutionalThreshold: data.constitutional_threshold,
+    recallThreshold: data.recall_threshold,
+    recallBoardConcurrence: data.recall_board_concurrence,
+    shadowMode: data.shadow_mode,
+  };
+}
+
+// ─── Phase 6.2: Ballots ───────────────────────────────────────
+
+export async function getBallots(motionId: string): Promise<Ballot[]> {
+  const { data, error } = await supabase
+    .from('ballots')
+    .select('*')
+    .eq('motion_id', motionId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((b: any) => ({
+    id: b.id,
+    motionId: b.motion_id,
+    voterId: b.voter_id,
+    vote: b.vote,
+    chamber: b.chamber,
+    weight: b.weight,
+    createdAt: b.created_at,
+  }));
+}
+
+export async function getMyBallot(motionId: string): Promise<Ballot | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('ballots')
+    .select('*')
+    .eq('motion_id', motionId)
+    .eq('voter_id', user.id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    motionId: data.motion_id,
+    voterId: data.voter_id,
+    vote: data.vote,
+    chamber: data.chamber,
+    weight: data.weight,
+    createdAt: data.created_at,
+  };
+}
+
+// ─── Phase 6.1: Motion discussions ───────────────────────────────────────
+
+export async function getMotionDiscussions(motionId: string): Promise<MotionDiscussion[]> {
+  const { data, error } = await supabase
+    .from('motion_discussions')
+    .select(
+      `
+      *,
+      profiles ( display_name as author_name )
+    `
+    )
+    .eq('motion_id', motionId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((d: any) => ({
+    id: d.id,
+    motionId: d.motion_id,
+    authorId: d.author_id,
+    authorName: d.profiles?.author_name || 'Unknown',
+    body: d.body,
+    parentId: d.parent_id,
+    createdAt: d.created_at,
+    updatedAt: d.updated_at,
+  }));
+}
+
+export async function addMotionDiscussion(data: {
+  motionId: string;
+  body: string;
+  parentId?: string | null;
+}): Promise<{ discussionId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: discussionId, error } = await supabase
+    .from('motion_discussions')
+    .insert({
+      motion_id: data.motionId,
+      author_id: user.id,
+      body: data.body,
+      parent_id: data.parentId ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !discussionId) throw new Error(error?.message || 'Failed to post discussion');
+
+  return { discussionId: discussionId.id };
+}
+
+export async function getListSchedule(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('list_schedule')
+    .select('*')
+    .eq('is_active', true)
+    .order('list_name', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data;
+}
+
+// ─── Phase 6.3: Recall and Mediation ───────────────────────────────────────
+
+export interface RecallPetition {
+  id: string;
+  motionId: string;
+  requiredSignatures: number;
+  currentSignatures: number;
+  thresholdReachedAt: string | null;
+  createdAt: string;
+}
+
+export interface RecallSignature {
+  id: string;
+  petitionId: string;
+  signerId: string;
+  signedAt: string;
+}
+
+export interface RightOfReply {
+  id: string;
+  motionId: string;
+  respondentId: string;
+  replyText: string;
+  submittedAt: string;
+}
+
+export interface MediationCase {
+  id: string;
+  motionId: string | null;
+  disputedJurisdiction: string | null;
+  classifiedBy: string | null;
+  classification: string | null;
+  deadline: string | null;
+  status: string;
+  resolution: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export async function getRecallPetition(motionId: string): Promise<RecallPetition | null> {
+  const { data, error } = await supabase
+    .from('recall_petitions')
+    .select('*')
+    .eq('motion_id', motionId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    motionId: data.motion_id,
+    requiredSignatures: data.required_signatures,
+    currentSignatures: data.current_signatures,
+    thresholdReachedAt: data.threshold_reached_at,
+    createdAt: data.created_at,
+  };
+}
+
+export async function signRecallPetition(petitionId: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.rpc('sign_recall_petition', {
+    p_petition_id: petitionId,
+    p_signer_id: user.id,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function createRecallPetition(
+  motionId: string,
+  requiredSignatures: number
+): Promise<{ petitionId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase
+    .from('recall_petitions')
+    .insert({
+      motion_id: motionId,
+      required_signatures: requiredSignatures,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) throw new Error(error?.message || 'Failed to create petition');
+
+  return { petitionId: data.id };
+}
+
+export async function getRightOfReply(motionId: string): Promise<RightOfReply | null> {
+  const { data, error } = await supabase
+    .from('right_of_reply')
+    .select('*')
+    .eq('motion_id', motionId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    motionId: data.motion_id,
+    respondentId: data.respondent_id,
+    replyText: data.reply_text,
+    submittedAt: data.submitted_at,
+  };
+}
+
+export async function submitRightOfReply(motionId: string, replyText: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.rpc('submit_right_of_reply', {
+    p_motion_id: motionId,
+    p_respondent_id: user.id,
+    p_reply_text: replyText,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function getMediationCases(): Promise<MediationCase[]> {
+  const { data, error } = await supabase
+    .from('mediation_cases')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((d: any) => ({
+    id: d.id,
+    motionId: d.motion_id,
+    disputedJurisdiction: d.disputed_jurisdiction,
+    classifiedBy: d.classified_by,
+    classification: d.classification,
+    deadline: d.deadline,
+    status: d.status,
+    resolution: d.resolution,
+    createdAt: d.created_at,
+    resolvedAt: d.resolved_at,
+  }));
+}
+
+export async function classifyJurisdiction(caseId: string, classification: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.rpc('classify_jurisdiction', {
+    p_case_id: caseId,
+    p_classifier_id: user.id,
+    p_classification: classification,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function mediateDeadlock(caseId: string, resolution: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.rpc('mediate_deadlock', {
+    p_case_id: caseId,
+    p_mediator_id: user.id,
+    p_resolution: resolution,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
+export async function createMediationCase(
+  motionId: string,
+  disputedJurisdiction: string
+): Promise<{ caseId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const deadline = new Date();
+  deadline.setHours(deadline.getHours() + 72);
+
+  const { data, error } = await supabase
+    .from('mediation_cases')
+    .insert({
+      motion_id: motionId,
+      disputed_jurisdiction: disputedJurisdiction,
+      deadline: deadline.toISOString(),
+      status: 'pending',
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) throw new Error(error?.message || 'Failed to create mediation case');
+
+  return { caseId: data.id };
+}
+
+// ─── Phase 7.1: Branch Health ───────────────────────────────────────
+
+export interface BranchHealthSnapshot {
+  id: string;
+  branchId: string;
+  branchName: string;
+  quarterStart: string;
+  quarterEnd: string;
+  activeMemberShare: number | null;
+  eventsHeld: number;
+  shippedOutput: number;
+  retentionRate: number | null;
+  expPerActiveMember: number | null;
+  facultyCoordinationScore: number | null;
+  healthScore: number;
+  stage: 'Healthy' | 'Watch' | 'Recovery plan' | 'Board review' | 'Decision';
+  shadowMode: boolean;
+}
+
+export interface BranchHealthConfig {
+  id: string;
+  versionLabel: string;
+  effectiveFrom: string;
+  floorScore: number;
+  weightActiveMembers: number;
+  weightEventsHeld: number;
+  weightShippedOutput: number;
+  weightRetention: number;
+  weightExpPerMember: number;
+  weightFacultyCoordination: number;
+  shadowMode: boolean;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface BranchHealthHistoryPoint {
+  quarterStart: string;
+  quarterEnd: string;
+  healthScore: number;
+  stage: string;
+}
+
+export interface BranchOverrideCase {
+  id: string;
+  branchId: string;
+  branchName: string;
+  stage: 'Watch' | 'Recovery plan' | 'Board review' | 'Decision';
+  triggeredAt: string;
+  boardDecision: string | null;
+  boardDecisionReason: string | null;
+  boardDecisionAt: string | null;
+  boardYesVotes: number | null;
+  boardTotalVotes: number | null;
+  rightOfReplyDeadline: string | null;
+  appealDeadline: string | null;
+  shadowMode: boolean;
+  createdAt: string;
+}
+
+export interface BranchOverrideRightOfReply {
+  id: string;
+  overrideCaseId: string;
+  respondentRole: 'branch_council' | 'faculty_coordinator' | 'college_student_council';
+  respondentId: string;
+  respondentName: string;
+  replyText: string;
+  submittedAt: string;
+}
+
+export interface BranchOverrideAppeal {
+  id: string;
+  overrideCaseId: string;
+  appellantId: string;
+  appellantName: string;
+  appealReason: string;
+  status: 'pending' | 'upheld' | 'overturned';
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionReason: string | null;
+  createdAt: string;
+}
+
+export interface BranchHealthHistoryPoint {
+  quarterStart: string;
+  quarterEnd: string;
+  healthScore: number;
+  stage: string;
+}
+
+export async function getCurrentBranchHealth(): Promise<BranchHealthSnapshot[]> {
+  const { data, error } = await supabase
+    .from('current_branch_health_view')
+    .select('*')
+    .order('branch_name', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((b: any) => ({
+    id: b.id,
+    branchId: b.branch_id,
+    branchName: b.branch_name,
+    quarterStart: b.quarter_start,
+    quarterEnd: b.quarter_end,
+    activeMemberShare: b.active_member_share,
+    eventsHeld: b.events_held,
+    shippedOutput: b.shipped_output,
+    retentionRate: b.retention_rate,
+    expPerActiveMember: b.exp_per_active_member,
+    facultyCoordinationScore: b.faculty_coordination_score,
+    healthScore: b.health_score,
+    stage: b.stage,
+    shadowMode: b.shadow_mode,
+  }));
+}
+
+export async function getBranchHealthConfig(): Promise<BranchHealthConfig | null> {
+  const { data, error } = await supabase
+    .from('branch_health_config')
+    .select('*')
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  return {
+    id: data.id,
+    versionLabel: data.version_label,
+    effectiveFrom: data.effective_from,
+    floorScore: data.floor_score,
+    weightActiveMembers: data.weight_active_members,
+    weightEventsHeld: data.weight_events_held,
+    weightShippedOutput: data.weight_shipped_output,
+    weightRetention: data.weight_retention,
+    weightExpPerMember: data.weight_exp_per_member,
+    weightFacultyCoordination: data.weight_faculty_coordination,
+    shadowMode: data.shadow_mode,
+    createdBy: data.created_by,
+    createdAt: data.created_at,
+  };
+}
+
+export async function getBranchHealthHistory(
+  branchId: string
+): Promise<BranchHealthHistoryPoint[]> {
+  const { data, error } = await supabase
+    .from('branch_health_snapshots')
+    .select('quarter_start, quarter_end, health_score, stage')
+    .eq('branch_id', branchId)
+    .order('quarter_start', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((d: any) => ({
+    quarterStart: d.quarter_start,
+    quarterEnd: d.quarter_end,
+    healthScore: d.health_score,
+    stage: d.stage,
+  }));
+}
+
+export async function getBranchOverrideCases(): Promise<BranchOverrideCase[]> {
+  const { data, error } = await supabase
+    .from('branch_override_cases')
+    .select(
+      `
+      *,
+      branches ( display_name )
+    `
+    )
+    .order('triggered_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((d: any) => ({
+    id: d.id,
+    branchId: d.branch_id,
+    branchName: d.branches?.display_name || 'Unknown Branch',
+    stage: d.stage,
+    triggeredAt: d.triggered_at,
+    boardDecision: d.board_decision,
+    boardDecisionReason: d.board_decision_reason,
+    boardDecisionAt: d.board_decision_at,
+    boardYesVotes: d.board_yes_votes,
+    boardTotalVotes: d.board_total_votes,
+    rightOfReplyDeadline: d.right_of_reply_deadline,
+    appealDeadline: d.appeal_deadline,
+    shadowMode: d.shadow_mode,
+    createdAt: d.created_at,
+  }));
+}
+
+export async function getBranchOverrideRightOfReplies(
+  overrideCaseId: string
+): Promise<BranchOverrideRightOfReply[]> {
+  const { data, error } = await supabase
+    .from('branch_override_right_of_reply')
+    .select(
+      `
+      *,
+      profiles ( display_name )
+    `
+    )
+    .eq('override_case_id', overrideCaseId)
+    .order('submitted_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((d: any) => ({
+    id: d.id,
+    overrideCaseId: d.override_case_id,
+    respondentRole: d.respondent_role,
+    respondentId: d.respondent_id,
+    respondentName: d.profiles?.display_name || 'Unknown',
+    replyText: d.reply_text,
+    submittedAt: d.submitted_at,
+  }));
+}
+
+export async function submitBranchOverrideRightOfReply(
+  overrideCaseId: string,
+  respondentRole: 'branch_council' | 'faculty_coordinator' | 'college_student_council',
+  respondentId: string,
+  replyText: string
+): Promise<void> {
+  const { error } = await supabase.rpc('submit_branch_override_right_of_reply', {
+    p_override_case_id: overrideCaseId,
+    p_respondent_role: respondentRole,
+    p_respondent_id: respondentId,
+    p_reply_text: replyText,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function fileBranchOverrideAppeal(
+  overrideCaseId: string,
+  appellantId: string,
+  appealReason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('file_branch_override_appeal', {
+    p_override_case_id: overrideCaseId,
+    p_appellant_id: appellantId,
+    p_appeal_reason: appealReason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function decideBranchOverride(
+  overrideCaseId: string,
+  deciderId: string,
+  decision: 'extend' | 'supervised_admin' | 'merge_dormant' | 'wind_down',
+  decisionReason: string,
+  boardYesVotes: number,
+  boardTotalVotes: number
+): Promise<void> {
+  const { error } = await supabase.rpc('decide_branch_override', {
+    p_override_case_id: overrideCaseId,
+    p_decider_id: deciderId,
+    p_decision: decision,
+    p_decision_reason: decisionReason,
+    p_board_yes_votes: boardYesVotes,
+    p_board_total_votes: boardTotalVotes,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function decideBranchOverrideAppeal(
+  appealId: string,
+  deciderId: string,
+  status: 'upheld' | 'overturned',
+  decisionReason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('decide_branch_override_appeal', {
+    p_appeal_id: appealId,
+    p_decider_id: deciderId,
+    p_status: status,
+    p_decision_reason: decisionReason,
+  });
+  if (error) throw new Error(error.message);
 }

@@ -3,7 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
-import { getBadges, getMemberBadges, type Badge, type MemberBadge, BADGE_RARITY_CONFIG } from '@/lib/api';
+import {
+  getBadges,
+  getMemberBadges,
+  type Badge,
+  type MemberBadge,
+  BADGE_RARITY_CONFIG,
+} from '@/lib/api';
 import AppIcon from '@/components/ui/AppIcon';
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -40,7 +46,11 @@ export default function BadgesPage() {
   const earnedBadgeIds = new Set(memberBadges.map((mb) => mb.badgeId));
 
   const rarityOrder: Record<Badge['rarity'], number> = {
-    common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4,
+    common: 0,
+    uncommon: 1,
+    rare: 2,
+    epic: 3,
+    legendary: 4,
   };
 
   const sortedBadges = [...badges].sort((a, b) => rarityOrder[a.rarity] - rarityOrder[b.rarity]);
@@ -65,7 +75,9 @@ export default function BadgesPage() {
               Earned {memberBadges.length} of {badges.length} badges
             </p>
           </div>
-          <div className={`px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20`}>
+          <div
+            className={`px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20`}
+          >
             {memberBadges.length}/{badges.length}
           </div>
         </div>
@@ -101,10 +113,14 @@ export default function BadgesPage() {
                   </span>
                 </div>
 
-                <h3 className={`font-heading font-bold ${earned ? 'text-ink' : 'text-muted-foreground'} mb-1`}>
+                <h3
+                  className={`font-heading font-bold ${earned ? 'text-ink' : 'text-muted-foreground'} mb-1`}
+                >
                   {badge.name}
                 </h3>
-                <p className={`text-xs ${earned ? 'text-mute' : 'text-muted-foreground/60'} mb-3 line-clamp-2`}>
+                <p
+                  className={`text-xs ${earned ? 'text-mute' : 'text-muted-foreground/60'} mb-3 line-clamp-2`}
+                >
                   {badge.description}
                 </p>
 

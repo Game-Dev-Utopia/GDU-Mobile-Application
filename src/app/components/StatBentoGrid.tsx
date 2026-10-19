@@ -5,7 +5,6 @@ import CountUpNumber from '@/components/ui/CountUpNumber';
 import { Flame, Clock, Zap, Trophy } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
-
 interface StatBentoGridProps {
   member: Member;
 }
@@ -83,7 +82,9 @@ export default function StatBentoGrid({ member }: StatBentoGridProps) {
               </span>
               <Icon size={16} className={stat.iconColor} />
             </div>
-            <div className={`text-3xl font-heading font-bold ${stat.valueColor} count-up-value mb-1`}>
+            <div
+              className={`text-3xl font-heading font-bold ${stat.valueColor} count-up-value mb-1`}
+            >
               <CountUpNumber
                 value={stat.value}
                 prefix={stat.prefix}

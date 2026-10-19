@@ -57,9 +57,7 @@ export default function RecentTransactionsFeed({ transactions }: RecentTransacti
                   {formatRelative(txn.timestamp)}
                 </p>
               </div>
-              <span className="text-sm font-bold text-xp-lime flex-shrink-0">
-                +{txn.xpEarned}
-              </span>
+              <span className="text-sm font-bold text-xp-lime flex-shrink-0">+{txn.xpEarned}</span>
             </div>
           ))}
         </div>

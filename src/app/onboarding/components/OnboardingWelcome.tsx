@@ -10,7 +10,17 @@ export default function OnboardingWelcome({ onEnter }: Props) {
   const { user } = useAuth();
   const [phase, setPhase] = useState<'burst' | 'card' | 'ready'>('burst');
   const [xpCount, setXpCount] = useState(0);
-  const [particles, setParticles] = useState<{ id: number; x: number; y: number; color: string; size: number; angle: number; speed: number }[]>([]);
+  const [particles, setParticles] = useState<
+    {
+      id: number;
+      x: number;
+      y: number;
+      color: string;
+      size: number;
+      angle: number;
+      speed: number;
+    }[]
+  >([]);
 
   const COLORS = ['#7C5CFF', '#22D3EE', '#A3E635', '#F59E0B', '#F43F5E', '#fff'];
 
@@ -30,7 +40,10 @@ export default function OnboardingWelcome({ onEnter }: Props) {
     // Phase transitions
     const t1 = setTimeout(() => setPhase('card'), 600);
     const t2 = setTimeout(() => setPhase('ready'), 1800);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   // Count-up XP
@@ -40,8 +53,10 @@ export default function OnboardingWelcome({ onEnter }: Props) {
     const target = 0; // starting XP
     const timer = setInterval(() => {
       val += 5;
-      if (val >= target) { setXpCount(target); clearInterval(timer); }
-      else setXpCount(val);
+      if (val >= target) {
+        setXpCount(target);
+        clearInterval(timer);
+      } else setXpCount(val);
     }, 30);
     return () => clearInterval(timer);
   }, [phase]);
@@ -53,7 +68,10 @@ export default function OnboardingWelcome({ onEnter }: Props) {
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full transition-all duration-1000"
           style={{
-            background: phase === 'burst' ? 'radial-gradient(circle, rgba(124,92,255,0.3) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(163,230,53,0.15) 0%, transparent 70%)',
+            background:
+              phase === 'burst'
+                ? 'radial-gradient(circle, rgba(124,92,255,0.3) 0%, transparent 70%)'
+                : 'radial-gradient(circle, rgba(163,230,53,0.15) 0%, transparent 70%)',
           }}
         />
       </div>
@@ -73,10 +91,12 @@ export default function OnboardingWelcome({ onEnter }: Props) {
             opacity: phase === 'burst' ? 1 : 0,
             transition: `all ${1.2 + p.speed}s cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
             transitionDelay: `${Math.random() * 0.3}s`,
-            ...(phase !== 'burst' ? {
-              left: `${p.x + (Math.random() - 0.5) * 80}%`,
-              top: `${p.y + 40 + Math.random() * 60}%`,
-            } : {}),
+            ...(phase !== 'burst'
+              ? {
+                  left: `${p.x + (Math.random() - 0.5) * 80}%`,
+                  top: `${p.y + 40 + Math.random() * 60}%`,
+                }
+              : {}),
           }}
         />
       ))}
@@ -125,7 +145,9 @@ export default function OnboardingWelcome({ onEnter }: Props) {
             { label: 'League', value: 'Bronze', color: '#CD7F32' },
           ].map((stat) => (
             <div key={stat.label} className="bg-muted/50 rounded-xl p-3">
-              <div className="font-pixel font-bold text-lg" style={{ color: stat.color }}>{stat.value}</div>
+              <div className="font-pixel font-bold text-lg" style={{ color: stat.color }}>
+                {stat.value}
+              </div>
               <div className="text-[10px] text-muted-foreground font-sans mt-0.5">{stat.label}</div>
             </div>
           ))}

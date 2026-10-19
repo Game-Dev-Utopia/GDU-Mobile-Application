@@ -32,11 +32,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
         open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div
-        className="absolute inset-0 modal-backdrop"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 modal-backdrop" onClick={onClose} aria-hidden="true" />
       <div
         className={`
           relative w-full ${sizeClass} card-base shadow-card max-h-[90vh] overflow-y-auto scrollbar-thin

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Home, Zap, FileCheck, Trophy, User } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
-
 const TABS = [
   { label: 'Home', href: '/', icon: Home },
   { label: 'Activities', href: '/activities', icon: Zap },
@@ -42,7 +41,9 @@ export default function BottomTabBar({ activePath }: BottomTabBarProps) {
                 strokeWidth={active ? 2.5 : 2}
                 className={active ? 'text-violetcustom' : 'text-muted-foreground'}
               />
-              <span className={`text-[10px] font-medium ${active ? 'text-violetcustom' : 'text-muted-foreground'}`}>
+              <span
+                className={`text-[10px] font-medium ${active ? 'text-violetcustom' : 'text-muted-foreground'}`}
+              >
                 {tab.label}
               </span>
             </Link>
