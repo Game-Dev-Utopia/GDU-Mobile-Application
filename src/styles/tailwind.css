@@ -320,3 +320,194 @@
 .animate-xp-flash {
   animation: xpFlash 0.8s ease forwards;
 }
+
+/* ─── Polish: accessible focus states ───────────────────────────────────── */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring), 0 0 0 1px var(--ring);
+  border-radius: calc(var(--radius) - 4px);
+}
+
+/* Buttons / interactive get a consistent focus ring */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="slider"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="option"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+  border-radius: calc(var(--radius) - 4px);
+}
+
+/* Skip link for keyboard / screen-reader users */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  z-index: 9999;
+  overflow: hidden;
+}
+.skip-link:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.875rem;
+  z-index: 99999;
+}
+
+/* ─── Reduced motion support ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  html {
+    scroll-behavior: auto !important;
+  }
+  .skeleton-pulse {
+    animation: none !important;
+    opacity: 0.5;
+  }
+}
+
+/* ─── Motion utilities ─────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-fade-in {
+  animation: fade-in 300ms ease forwards;
+}
+.animate-slide-in {
+  animation: slide-in 400ms ease forwards;
+}
+.animate-scale-in {
+  animation: scale-in 300ms ease forwards;
+}
+
+/* ─── Empty state helpers ──────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+.empty-state-description {
+  font-size: 0.9375rem;
+  color: var(--muted-foreground);
+  max-width: 32rem;
+  margin: 0 auto 1.5rem;
+  line-height: 1.5;
+}
+
+/* ─── Error state helpers ──────────────────────────────────────────────── */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+  text-align: center;
+}
+.error-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius);
+  background: rgba(244, 63, 94, 0.12);
+  color: var(--rose);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+/* ─── Glass panel helper ───────────────────────────────────────────────── */
+.glass-panel {
+  background: rgba(19, 26, 51, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ─── Skeleton refinements ─────────────────────────────────────────────── */
+.skeleton-pulse {
+  background-color: var(--muted);
+  color: transparent;
+}
+
+/* ─── Page shell helpers ───────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.page-header-content h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.page-header-content p {
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  margin-top: 0.25rem;
+}
+
+/* ─── Focus-visible ring utility class (apply to custom interactive UI) ─── */
+.focus-ring-visible:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: calc(var(--radius) - 4px);
+}

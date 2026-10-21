@@ -17,6 +17,7 @@ import {
   Clock,
   BuildingIcon,
   Gift,
+  Upload,
 } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Standing', href: '/standing', icon: Clock },
   { label: 'Branch Health', href: '/branch-health', icon: BuildingIcon },
   { label: 'Governance', href: '/governance', icon: Settings },
+  { label: 'Partners', href: '/partners', icon: BuildingIcon },
 ];
 
 const APPROVER_ITEMS: NavItem[] = [
@@ -48,10 +50,15 @@ const APPROVER_ITEMS: NavItem[] = [
   { label: 'Team Health', href: '/team-health', icon: Shield },
 ];
 
+const PARTNER_ITEMS: NavItem[] = [{ label: 'Partner Rep', href: '/partners/rep', icon: Shield }];
+
 const ADMIN_ITEMS: NavItem[] = [
   { label: 'Admin', href: '/admin', icon: Settings },
+  { label: 'Admin Console', href: '/admin-console', icon: Shield },
+  { label: 'Import', href: '/admin/import', icon: Upload },
   { label: 'Audit Trail', href: '/audit', icon: FileCheck },
   { label: 'Penalties', href: '/penalties', icon: Shield },
+  { label: 'Finance & Compliance', href: '/finance-compliance', icon: FileCheck },
   { label: 'Compliance', href: '/compliance', icon: FileCheck },
   { label: 'Cash Releases', href: '/cash', icon: Gift },
 ];
@@ -68,13 +75,14 @@ export default function Sidebar({ activePath }: SidebarProps) {
   const showApprover = userRoles.some((r) =>
     ['domain_head', 'team_lead', 'board', 'admin'].includes(r)
   );
-  const showAdmin = userRoles.some((r) => ['board', 'admin'].includes(r));
+  const showAdmin = userRoles.some((r) => ['board', 'board_member', 'admin'].includes(r));
   const showConductPanel = userRoles.some((r) =>
     ['board', 'admin', 'conduct_panel_member', 'domain_head', 'team_lead'].includes(r)
   );
   const showFinanceCompliance = userRoles.some((r) =>
-    ['board', 'admin', 'finance_compliance_officer'].includes(r)
+    ['board', 'board_member', 'admin', 'finance_compliance_officer'].includes(r)
   );
+  const showPartnerRep = userRoles.includes('partner_rep');
 
   function isActive(href: string) {
     if (href === '/') return activePath === '/';
@@ -163,6 +171,20 @@ export default function Sidebar({ activePath }: SidebarProps) {
           </>
         )}
 
+        {showPartnerRep && (
+          <>
+            <div className="my-3 border-t border-border" />
+            {!collapsed && (
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest px-3 mb-2">
+                Partner
+              </p>
+            )}
+            {PARTNER_ITEMS.map((item) => (
+              <NavLink key={`nav-partner-${item.href}`} item={item} />
+            ))}
+          </>
+        )}
+
         <div className="my-3 border-t border-border" />
 
         {(showAdmin || showFinanceCompliance) && (
@@ -202,6 +224,16 @@ export default function Sidebar({ activePath }: SidebarProps) {
             <Settings size={20} strokeWidth={2} />
           </span>
           {!collapsed && <span className="text-sm font-medium">Settings → Notifications</span>}
+        </Link>
+
+        <Link
+          href="/settings/integrations"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg nav-item-inactive transition-all duration-150 group relative"
+        >
+          <span className="relative flex-shrink-0">
+            <Shield size={20} strokeWidth={2} />
+          </span>
+          {!collapsed && <span className="text-sm font-medium">Settings → Integrations</span>}
         </Link>
 
         <Link

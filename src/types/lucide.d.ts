@@ -30,6 +30,9 @@ declare module 'lucide-react' {
   export const X: any;
   export const Megaphone: any;
   export const Gift: any;
+  export const Github: any;
+  export const Mail: any;
+  export const Upload: any;
   export const AlertTriangle: any;
   export const Info: any;
   export const Flame: any;
@@ -38,4 +41,6 @@ declare module 'lucide-react' {
   export const Check: any;
   export const Plus: any;
   export const BuildingIcon: any;
+  export const Print: any;
+  export const Download: any;
 }

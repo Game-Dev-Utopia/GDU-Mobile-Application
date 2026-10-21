@@ -60,6 +60,8 @@ export interface Member {
   role: ViewAsRole;
   roles: string[];
   scopes: string[];
+  isAlumni: boolean;
+  alumniBadge?: string | null;
 }
 
 export interface WeeklyXPPoint {
@@ -209,6 +211,8 @@ function mapProfileToMember(
     role: (profile.role as ViewAsRole) || 'member',
     roles: userRoles,
     scopes: userScopes,
+    isAlumni: profile.is_alumni ?? false,
+    alumniBadge: profile.alumni_badge ?? null,
   };
 }
 
@@ -2744,4 +2748,2102 @@ export async function decideBranchOverrideAppeal(
     p_decision_reason: decisionReason,
   });
   if (error) throw new Error(error.message);
+}
+
+// ─── Phase 7.2: Conduct & Probation ───────────────────────────────────────
+
+export interface ConductCase {
+  id: string;
+  memberId: string;
+  memberName: string;
+  reasonCode: string;
+  severity: 'minor' | 'moderate' | 'severe';
+  description: string;
+  evidenceLinks: string[];
+  filedBy: string;
+  filedAt: string;
+  status:
+    | 'notice'
+    | 'response'
+    | 'panel_review'
+    | 'decision'
+    | 'board_ratification'
+    | 'appeal'
+    | 'resolved';
+  noticeSentAt: string | null;
+  responseDeadline: string | null;
+  responseSubmittedAt: string | null;
+  responseText: string | null;
+  panelReviewedAt: string | null;
+  panelReviewedBy: string | null;
+  panelDecision: string | null;
+  boardRatifiedAt: string | null;
+  boardRatifiedBy: string | null;
+  appealDeadline: string | null;
+  appealSubmittedAt: string | null;
+  appealDecision: string | null;
+  sensitive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConductPanelMember {
+  id: string;
+  profileId: string;
+  profileName: string;
+  isRecused: boolean;
+  recusedAt: string | null;
+  recusalReason: string | null;
+  appointedAt: string;
+  createdAt: string;
+}
+
+export interface ConductCaseAppeal {
+  id: string;
+  conductCaseId: string;
+  appellantId: string;
+  appellantName: string;
+  appealReason: string;
+  status: 'pending' | 'upheld' | 'overturned';
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionReason: string | null;
+  createdAt: string;
+}
+
+export interface ProbationRecord {
+  id: string;
+  memberId: string;
+  memberName: string;
+  stage: 'healthy' | 'at_risk' | 'probation' | 'hearing' | 'decision' | 'resolved';
+  reason: string | null;
+  supportPlan: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  reviewedAt: string | null;
+  positionStartedAt: string | null;
+  gracePeriodDays: number | null;
+  graceExpiresAt: string | null;
+  createdAt: string;
+}
+
+export interface LeaveOfAbsence {
+  id: string;
+  memberId: string;
+  memberName: string;
+  reason: 'exams' | 'internship' | 'personal' | 'medical';
+  startDate: string;
+  endDate: string;
+  status: 'pending' | 'approved' | 'active' | 'ended';
+  approvedBy: string | null;
+  isFreezeRequest: boolean;
+  freezeReason: string | null;
+  frozenAt: string | null;
+  createdAt: string;
+}
+
+export async function getConductCases(): Promise<ConductCase[]> {
+  const { data, error } = await supabase
+    .from('conduct_cases')
+    .select(
+      `
+      *,
+      member:profiles!conduct_cases_member_id_fkey ( display_name ),
+      filer:profiles!conduct_cases_filed_by_fkey ( display_name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((c: any) => ({
+    id: c.id,
+    memberId: c.member_id,
+    memberName: c.member?.display_name || 'Unknown',
+    reasonCode: c.reason_code,
+    severity: c.severity,
+    description: c.description,
+    evidenceLinks: c.evidence_links || [],
+    filedBy: c.filed_by,
+    filedAt: c.filed_at,
+    status: c.status,
+    noticeSentAt: c.notice_sent_at,
+    responseDeadline: c.response_deadline,
+    responseSubmittedAt: c.response_submitted_at,
+    responseText: c.response_text,
+    panelReviewedAt: c.panel_reviewed_at,
+    panelReviewedBy: c.panel_reviewed_by,
+    panelDecision: c.panel_decision,
+    boardRatifiedAt: c.board_ratified_at,
+    boardRatifiedBy: c.board_ratified_by,
+    appealDeadline: c.appeal_deadline,
+    appealSubmittedAt: c.appeal_submitted_at,
+    appealDecision: c.appeal_decision,
+    sensitive: c.sensitive,
+    createdAt: c.created_at,
+    updatedAt: c.updated_at,
+  }));
+}
+
+export async function fileConductCase(data: {
+  memberId: string;
+  reasonCode: string;
+  severity: 'minor' | 'moderate' | 'severe';
+  description: string;
+  evidenceLinks: string[];
+}): Promise<{ caseId: string }> {
+  const { data: caseId, error } = await supabase.rpc('file_conduct_case', {
+    p_member_id: data.memberId,
+    p_reason_code: data.reasonCode,
+    p_severity: data.severity,
+    p_description: data.description,
+    p_evidence_links: data.evidenceLinks,
+  });
+  if (error) throw new Error(error.message);
+  return { caseId: caseId as string };
+}
+
+export async function respondToConductCase(caseId: string, responseText: string): Promise<void> {
+  const { error } = await supabase.rpc('respond_to_conduct_case', {
+    p_case_id: caseId,
+    p_response_text: responseText,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function panelReviewConductCase(
+  caseId: string,
+  decision: string,
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('panel_review_conduct_case', {
+    p_case_id: caseId,
+    p_decision: decision,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function boardRatifyConductCase(
+  caseId: string,
+  ratified: boolean,
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('board_ratify_conduct_case', {
+    p_case_id: caseId,
+    p_ratified: ratified,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getConductPanelMembers(): Promise<ConductPanelMember[]> {
+  const { data, error } = await supabase
+    .from('conduct_panel_members')
+    .select(
+      `
+      *,
+      profiles ( display_name )
+    `
+    )
+    .order('appointed_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((m: any) => ({
+    id: m.id,
+    profileId: m.profile_id,
+    profileName: m.profiles?.display_name || 'Unknown',
+    isRecused: m.is_recused,
+    recusedAt: m.recused_at,
+    recusalReason: m.recusal_reason,
+    appointedAt: m.appointed_at,
+    createdAt: m.created_at,
+  }));
+}
+
+export async function appointConductPanelMember(profileId: string): Promise<void> {
+  const { error } = await supabase.rpc('appoint_conduct_panel_member', {
+    p_profile_id: profileId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function recusePanelMember(caseId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('recuse_panel_member', {
+    p_case_id: caseId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function fileConductCaseAppeal(
+  conductCaseId: string,
+  appellantId: string,
+  appealReason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('file_conduct_case_appeal', {
+    p_conduct_case_id: conductCaseId,
+    p_appellant_id: appellantId,
+    p_appeal_reason: appealReason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function decideConductCaseAppeal(
+  appealId: string,
+  deciderId: string,
+  status: 'upheld' | 'overturned',
+  decisionReason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('decide_conduct_case_appeal', {
+    p_appeal_id: appealId,
+    p_decider_id: deciderId,
+    p_status: status,
+    p_decision_reason: decisionReason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getConductCaseAppeals(conductCaseId: string): Promise<ConductCaseAppeal[]> {
+  const { data, error } = await supabase
+    .from('conduct_case_appeals')
+    .select(
+      `
+      *,
+      appellant:profiles ( display_name )
+    `
+    )
+    .eq('conduct_case_id', conductCaseId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((a: any) => ({
+    id: a.id,
+    conductCaseId: a.conduct_case_id,
+    appellantId: a.appellant_id,
+    appellantName: a.appellant?.display_name || 'Unknown',
+    appealReason: a.appeal_reason,
+    status: a.status,
+    decidedBy: a.decided_by,
+    decidedAt: a.decided_at,
+    decisionReason: a.decision_reason,
+    createdAt: a.created_at,
+  }));
+}
+
+export async function getProbationRecords(): Promise<ProbationRecord[]> {
+  const { data, error } = await supabase
+    .from('probation_records')
+    .select(
+      `
+      *,
+      member:profiles!probation_records_member_id_fkey ( display_name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((p: any) => ({
+    id: p.id,
+    memberId: p.member_id,
+    memberName: p.member?.display_name || 'Unknown',
+    stage: p.stage,
+    reason: p.reason,
+    supportPlan: p.support_plan,
+    startedAt: p.started_at,
+    endedAt: p.ended_at,
+    reviewedAt: p.reviewed_at,
+    positionStartedAt: p.position_started_at,
+    gracePeriodDays: p.grace_period_days,
+    graceExpiresAt: p.grace_expires_at,
+    createdAt: p.created_at,
+  }));
+}
+
+export async function getLeaveOfAbsence(): Promise<LeaveOfAbsence[]> {
+  const { data, error } = await supabase
+    .from('leave_of_absence')
+    .select(
+      `
+      *,
+      member:profiles!leave_of_absence_member_id_fkey ( display_name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((l: any) => ({
+    id: l.id,
+    memberId: l.member_id,
+    memberName: l.member?.display_name || 'Unknown',
+    reason: l.reason,
+    startDate: l.start_date,
+    endDate: l.end_date,
+    status: l.status,
+    approvedBy: l.approved_by,
+    isFreezeRequest: l.is_freeze_request,
+    freezeReason: l.freeze_reason,
+    frozenAt: l.frozen_at,
+    createdAt: l.created_at,
+  }));
+}
+
+export async function requestLeaveOfAbsenceFreeze(
+  memberId: string,
+  reason: 'exams' | 'internship' | 'personal' | 'medical',
+  startDate: string,
+  endDate: string,
+  freezeReason: string
+): Promise<void> {
+  const { error } = await supabase.rpc('request_leave_of_absence_freeze', {
+    p_member_id: memberId,
+    p_reason: reason,
+    p_start_date: startDate,
+    p_end_date: endDate,
+    p_freeze_reason: freezeReason,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Phase 7.3: Feedback 360 ───────────────────────────────────────
+
+export interface Feedback360Cycle {
+  id: string;
+  quarterLabel: string;
+  quarterStart: string;
+  quarterEnd: string;
+  status: 'open' | 'closed';
+  createdAt: string;
+}
+
+export interface Feedback360Response {
+  id: string;
+  cycleId: string;
+  targetId: string;
+  targetName: string;
+  communication: number;
+  reliability: number;
+  fairness: number;
+  leadership: number;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface Feedback360Summary {
+  cycleId: string;
+  targetId: string;
+  targetName: string;
+  respondentCount: number;
+  avgCommunication: number;
+  avgReliability: number;
+  avgFairness: number;
+  avgLeadership: number;
+  avgOverall: number;
+  comments: string[];
+}
+
+export async function getFeedback360Cycles(): Promise<Feedback360Cycle[]> {
+  const { data, error } = await supabase
+    .from('feedback_360_cycles')
+    .select('*')
+    .order('quarter_start', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((c: any) => ({
+    id: c.id,
+    quarterLabel: c.quarter_label,
+    quarterStart: c.quarter_start,
+    quarterEnd: c.quarter_end,
+    status: c.status,
+    createdAt: c.created_at,
+  }));
+}
+
+export async function getFeedback360Responses(cycleId: string): Promise<Feedback360Response[]> {
+  const { data, error } = await supabase
+    .from('feedback_360_responses')
+    .select(
+      `
+      *,
+      target:profiles!feedback_360_responses_target_id_fkey ( display_name )
+    `
+    )
+    .eq('cycle_id', cycleId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((r: any) => ({
+    id: r.id,
+    cycleId: r.cycle_id,
+    targetId: r.target_id,
+    targetName: r.target?.display_name || 'Unknown',
+    communication: r.communication,
+    reliability: r.reliability,
+    fairness: r.fairness,
+    leadership: r.leadership,
+    comment: r.comment,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function getFeedback360Summary(cycleId: string): Promise<Feedback360Summary[]> {
+  const { data, error } = await supabase
+    .from('feedback_360_summary')
+    .select(
+      `
+      *,
+      target:profiles ( display_name )
+    `
+    )
+    .eq('cycle_id', cycleId);
+
+  if (error || !data) return [];
+
+  return data.map((s: any) => ({
+    cycleId: s.cycle_id,
+    targetId: s.target_id,
+    targetName: s.target?.display_name || 'Unknown',
+    respondentCount: s.respondent_count,
+    avgCommunication: s.avg_communication,
+    avgReliability: s.avg_reliability,
+    avgFairness: s.avg_fairness,
+    avgLeadership: s.avg_leadership,
+    avgOverall: s.avg_overall,
+    comments: s.comments || [],
+  }));
+}
+
+export async function submitFeedback360Response(data: {
+  cycleId: string;
+  targetId: string;
+  communication: number;
+  reliability: number;
+  fairness: number;
+  leadership: number;
+  comment: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc('submit_feedback_360_response', {
+    p_cycle_id: data.cycleId,
+    p_target_id: data.targetId,
+    p_communication: data.communication,
+    p_reliability: data.reliability,
+    p_fairness: data.fairness,
+    p_leadership: data.leadership,
+    p_comment: data.comment,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function closeFeedback360Cycle(cycleId: string): Promise<void> {
+  const { error } = await supabase.rpc('close_feedback_360_cycle', {
+    p_cycle_id: cycleId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPositionHolders(): Promise<
+  { id: string; displayName: string; role: string }[]
+> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, role')
+    .in('role', ['board_member', 'council_member', 'domain_head', 'faculty', 'admin']);
+
+  if (error || !data) return [];
+
+  return data.map((p: any) => ({
+    id: p.id,
+    displayName: p.display_name,
+    role: p.role,
+  }));
+}
+
+// ─── Phase 8.1: Coins & Rewards ───────────────────────────────────────
+
+export interface CoinTransaction {
+  id: string;
+  memberId: string;
+  amount: number;
+  source: 'exp_award' | 'spot_award' | 'kudos' | 'redemption' | 'adjustment';
+  referenceId: string | null;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface RewardCatalog {
+  id: string;
+  name: string;
+  description: string | null;
+  costCoins: number;
+  stock: number;
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+  imageUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface Redemption {
+  id: string;
+  memberId: string;
+  rewardId: string;
+  rewardName: string;
+  costCoins: number;
+  status: 'requested' | 'approved' | 'shipped' | 'collected' | 'rejected';
+  requestedAt: string;
+  processedAt: string | null;
+  processedBy: string | null;
+  trackingInfo: string | null;
+  createdAt: string;
+}
+
+export async function getCoinBalance(memberId: string): Promise<number> {
+  const { data: balance, error } = await supabase.rpc('get_coin_balance', {
+    p_member_id: memberId,
+  });
+  if (error) throw new Error(error.message);
+  return (balance as number) ?? 0;
+}
+
+export async function getCoinTransactions(memberId: string): Promise<CoinTransaction[]> {
+  const { data, error } = await supabase
+    .from('coin_transactions')
+    .select('*')
+    .eq('member_id', memberId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((t: any) => ({
+    id: t.id,
+    memberId: t.member_id,
+    amount: t.amount,
+    source: t.source,
+    referenceId: t.reference_id,
+    description: t.description,
+    createdAt: t.created_at,
+  }));
+}
+
+export async function getRewardCatalog(): Promise<RewardCatalog[]> {
+  const { data, error } = await supabase
+    .from('reward_catalog')
+    .select('*')
+    .order('cost_coins', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    costCoins: r.cost_coins,
+    stock: r.stock,
+    rarity: r.rarity,
+    imageUrl: r.image_url,
+    isActive: r.is_active,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function getRedemptions(): Promise<Redemption[]> {
+  const { data, error } = await supabase
+    .from('redemptions')
+    .select(
+      `
+      *,
+      reward:reward_catalog ( name )
+    `
+    )
+    .order('requested_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((r: any) => ({
+    id: r.id,
+    memberId: r.member_id,
+    rewardId: r.reward_id,
+    rewardName: r.reward?.name || 'Unknown Reward',
+    costCoins: r.cost_coins,
+    status: r.status,
+    requestedAt: r.requested_at,
+    processedAt: r.processed_at,
+    processedBy: r.processed_by,
+    trackingInfo: r.tracking_info,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function requestRedemption(rewardId: string): Promise<{ redemptionId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: redemptionId, error } = await supabase.rpc('request_redemption', {
+    p_member_id: user.id,
+    p_reward_id: rewardId,
+  });
+  if (error) throw new Error(error.message);
+  return { redemptionId: redemptionId as string };
+}
+
+export async function processRedemption(
+  redemptionId: string,
+  approve: boolean,
+  trackingInfo: string
+): Promise<void> {
+  const { error } = await supabase.rpc('process_redemption', {
+    p_redemption_id: redemptionId,
+    p_approve: approve,
+    p_tracking_info: trackingInfo,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function createReward(data: {
+  name: string;
+  description: string;
+  costCoins: number;
+  stock: number;
+  rarity: RewardCatalog['rarity'];
+  imageUrl: string | null;
+}): Promise<{ rewardId: string }> {
+  const { data: rewardId, error } = await supabase
+    .from('reward_catalog')
+    .insert({
+      name: data.name,
+      description: data.description,
+      cost_coins: data.costCoins,
+      stock: data.stock,
+      rarity: data.rarity,
+      image_url: data.imageUrl,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+  if (error || !rewardId) throw new Error(error?.message || 'Failed to create reward');
+  return { rewardId: rewardId.id };
+}
+
+export async function updateReward(
+  rewardId: string,
+  data: Partial<{
+    name: string;
+    description: string;
+    costCoins: number;
+    stock: number;
+    rarity: RewardCatalog['rarity'];
+    imageUrl: string | null;
+    isActive: boolean;
+  }>
+): Promise<void> {
+  const update: Record<string, any> = {};
+  if (data.name !== undefined) update.name = data.name;
+  if (data.description !== undefined) update.description = data.description;
+  if (data.costCoins !== undefined) update.cost_coins = data.costCoins;
+  if (data.stock !== undefined) update.stock = data.stock;
+  if (data.rarity !== undefined) update.rarity = data.rarity;
+  if (data.imageUrl !== undefined) update.image_url = data.imageUrl;
+  if (data.isActive !== undefined) update.is_active = data.isActive;
+
+  const { error } = await supabase.from('reward_catalog').update(update).eq('id', rewardId);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteReward(rewardId: string): Promise<void> {
+  const { error } = await supabase.from('reward_catalog').delete().eq('id', rewardId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Feature Flags ───────────────────────────────────────
+
+export const FEATURE_FLAGS = {
+  cashTab: false,
+};
+
+// ─── Phase 8.3: Admin Console ───────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  actorId?: string;
+  actorName?: string;
+  action: string;
+  tableName?: string | null;
+  recordId?: string | null;
+  oldValues?: Record<string, unknown> | null;
+  newValues?: Record<string, unknown> | null;
+  createdAt?: string | null;
+}
+
+export type FeatureFlagMode = 'shadow' | 'live';
+
+export interface FeatureFlag {
+  key: string;
+  mode: FeatureFlagMode;
+  description?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminConfigPayload {
+  weights: {
+    board: number;
+    council: number;
+    member: number;
+    branch_health: Record<string, number>;
+  };
+  caps: Record<string, number>;
+  thresholds: Record<string, number>;
+  class_shares: Record<string, number>;
+  quorum: Record<string, number>;
+  league_sizes: Array<{
+    name: string;
+    displayName?: string | null;
+    minExp?: number;
+    maxExp?: number | null;
+    color?: string | null;
+    sortOrder?: number;
+    isLocked?: boolean;
+  }>;
+}
+
+export interface AdminConfigVersion {
+  id: string;
+  versionLabel: string;
+  effectiveFrom: string;
+  config: AdminConfigPayload | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdByName?: string | null;
+  createdAt?: string | null;
+  isEffective?: boolean;
+  isScheduled?: boolean;
+}
+
+export interface RoleAssignmentHistoryEntry {
+  id: string;
+  profileId?: string;
+  profileName?: string;
+  role?: string | null;
+  scope?: string | null;
+  scopeEntityId?: string | null;
+  action?: string | null;
+  reason?: string | null;
+  changedBy?: string | null;
+  changedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface RoleAssignmentInfo {
+  id: string;
+  profileId: string;
+  profileName?: string;
+  role: string;
+  scope: string;
+  scopeEntityId?: string | null;
+  isActive?: boolean;
+  grantedBy?: string | null;
+  grantedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export async function getAuditLogs(filters?: {
+  actorId?: string;
+  action?: string;
+  tableName?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}): Promise<AuditLogEntry[]> {
+  let query = supabase
+    .from('audit_log')
+    .select(`*, profiles ( username, display_name )`)
+    .order('created_at', { ascending: false });
+
+  if (filters?.actorId) query = query.eq('actor_id', filters.actorId);
+  if (filters?.action) query = query.eq('action', filters.action);
+  if (filters?.tableName) query = query.eq('table_name', filters.tableName);
+  if (filters?.startDate) query = query.gte('created_at', filters.startDate);
+  if (filters?.endDate) query = query.lte('created_at', filters.endDate);
+  if (filters?.limit) query = query.limit(filters.limit);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    actorId: row.actor_id ?? null,
+    actorName: row.profiles?.display_name || row.profiles?.username || 'Unknown',
+    action: row.action,
+    tableName: row.table_name ?? null,
+    recordId: row.record_id ?? null,
+    oldValues: row.old_values ?? null,
+    newValues: row.new_values ?? null,
+    createdAt: row.created_at ?? null,
+  }));
+}
+
+export async function getAdminConfigVersions(): Promise<AdminConfigVersion[]> {
+  const { data, error } = await supabase
+    .from('config_versions')
+    .select(`*, profiles ( display_name )`)
+    .not('config', 'is', null)
+    .order('effective_from', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  const now = new Date();
+  return data.map((row) => ({
+    id: row.id,
+    versionLabel: row.version_label,
+    effectiveFrom: row.effective_from,
+    config: row.config,
+    notes: row.notes ?? null,
+    createdBy: row.created_by ?? null,
+    createdByName: row.profiles?.display_name ?? null,
+    createdAt: row.created_at ?? null,
+    isEffective: new Date(row.effective_from) <= now,
+    isScheduled: new Date(row.effective_from) > now,
+  }));
+}
+
+export async function publishAdminConfigVersion(input: {
+  versionLabel: string;
+  effectiveFrom: string;
+  config: AdminConfigPayload;
+  notes?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc('publish_admin_config_version', {
+    p_version_label: input.versionLabel,
+    p_effective_from: input.effectiveFrom,
+    p_config: input.config as unknown as Record<string, unknown>,
+    p_notes: input.notes ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return String(data);
+}
+
+export async function getFeatureFlags(): Promise<FeatureFlag[]> {
+  const { data, error } = await supabase
+    .from('feature_flags')
+    .select('*')
+    .order('key', { ascending: true });
+  if (error || !data) return [];
+  return data.map((row) => ({
+    key: row.key,
+    mode: row.mode,
+    description: row.description ?? null,
+    updatedBy: row.updated_by ?? null,
+    updatedAt: row.updated_at ?? null,
+  }));
+}
+
+export async function setFeatureFlag(input: {
+  key: string;
+  mode: FeatureFlagMode;
+  reason?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc('set_feature_flag', {
+    p_key: input.key,
+    p_mode: input.mode,
+    p_reason: input.reason ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getFeatureFlagMode(key: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('feature_flag_mode', { p_key: key });
+  if (error || !data) return null;
+  return String(data);
+}
+
+export async function getRoleAssignmentHistory(filters?: {
+  profileId?: string;
+  action?: string;
+  limit?: number;
+}): Promise<RoleAssignmentHistoryEntry[]> {
+  let query = supabase
+    .from('role_assignment_history')
+    .select(`*, profiles ( username, display_name )`)
+    .order('changed_at', { ascending: false });
+
+  if (filters?.profileId) query = query.eq('profile_id', filters.profileId);
+  if (filters?.action) query = query.eq('action', filters.action);
+  if (filters?.limit) query = query.limit(filters.limit);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    profileId: row.profile_id,
+    profileName: row.profiles?.display_name || row.profiles?.username || 'Unknown',
+    role: row.role ?? null,
+    scope: row.scope ?? null,
+    scopeEntityId: row.scope_entity_id ?? null,
+    action: row.action ?? null,
+    reason: row.reason ?? null,
+    changedBy: row.changed_by ?? null,
+    changedAt: row.changed_at ?? null,
+    expiresAt: row.expires_at ?? null,
+  }));
+}
+
+export async function getActiveRoleAssignments(): Promise<RoleAssignmentInfo[]> {
+  const { data, error } = await supabase
+    .from('role_assignments')
+    .select(`*, profiles ( username, display_name )`)
+    .eq('is_active', true)
+    .order('granted_at', { ascending: false });
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    profileId: row.profile_id,
+    profileName: row.profiles?.display_name || row.profiles?.username || 'Unknown',
+    role: row.role,
+    scope: row.scope,
+    scopeEntityId: row.scope_entity_id ?? null,
+    isActive: row.is_active,
+    grantedBy: row.granted_by ?? null,
+    grantedAt: row.granted_at ?? null,
+    expiresAt: row.expires_at ?? null,
+  }));
+}
+
+export async function grantRole(input: {
+  profileId: string;
+  role: string;
+  scope: string;
+  scopeEntityId?: string | null;
+  expiresAt?: string | null;
+  reason?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc('grant_role', {
+    p_profile_id: input.profileId,
+    p_role: input.role,
+    p_scope: input.scope,
+    p_scope_entity_id: input.scopeEntityId ?? null,
+    p_expires_at: input.expiresAt ?? null,
+    p_reason: input.reason ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function revokeRole(input: {
+  roleAssignmentId: string;
+  reason?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc('revoke_role', {
+    p_role_assignment_id: input.roleAssignmentId,
+    p_reason: input.reason ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Phase 8.2: Finance & Compliance ───────────────────────
+
+export interface ArticlesVersion {
+  id: string;
+  versionLabel: string;
+  documentUrl: string;
+  effectiveFrom: string;
+  clause: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+export interface MouRegister {
+  id: string;
+  partnerName: string;
+  partnerType: 'friend' | 'partner' | 'strategic';
+  mouDocumentUrl: string | null;
+  startDate: string;
+  endDate: string;
+  expiryReminderSent: boolean;
+  status: 'active' | 'expired' | 'terminated';
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface FilingCalendar {
+  id: string;
+  filingName: string;
+  filingType: string;
+  dueDate: string;
+  status: 'pending' | 'filed' | 'overdue' | 'waived';
+  filedAt: string | null;
+  filedBy: string | null;
+  documentUrl: string | null;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface CashRelease {
+  id: string;
+  preparedBy: string;
+  preparedByName: string;
+  approvedBy: string | null;
+  recipientId: string;
+  recipientName: string;
+  amountCents: number;
+  currency: string;
+  purpose: string;
+  justification: string | null;
+  ledgerEntryIds: string[];
+  authority: string;
+  status: 'prepared' | 'approved' | 'released' | 'rejected';
+  preparedAt: string;
+  approvedAt: string | null;
+  releasedAt: string | null;
+  createdAt: string;
+}
+
+export interface PermissionBundleHolder {
+  id: string;
+  bundleName: string;
+  holderType: 'group' | 'person' | 'committee';
+  holderId: string | null;
+  holderName: string | null;
+  holderGroup: string | null;
+  assignedBy: string | null;
+  assignedAt: string;
+  effectiveFrom: string;
+  motionId: string | null;
+}
+
+export async function getArticlesVersions(): Promise<ArticlesVersion[]> {
+  const { data, error } = await supabase
+    .from('articles_versions')
+    .select('*')
+    .order('effective_from', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((a: any) => ({
+    id: a.id,
+    versionLabel: a.version_label,
+    documentUrl: a.document_url,
+    effectiveFrom: a.effective_from,
+    clause: a.clause,
+    approvedBy: a.approved_by,
+    approvedAt: a.approved_at,
+    createdAt: a.created_at,
+  }));
+}
+
+export async function getMouRegister(): Promise<MouRegister[]> {
+  const { data, error } = await supabase
+    .from('mou_register')
+    .select('*')
+    .order('end_date', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((m: any) => ({
+    id: m.id,
+    partnerName: m.partner_name,
+    partnerType: m.partner_type,
+    mouDocumentUrl: m.mou_document_url,
+    startDate: m.start_date,
+    endDate: m.end_date,
+    expiryReminderSent: m.expiry_reminder_sent,
+    status: m.status,
+    createdBy: m.created_by,
+    createdAt: m.created_at,
+  }));
+}
+
+export async function getFilingCalendar(): Promise<FilingCalendar[]> {
+  const { data, error } = await supabase
+    .from('filing_calendar')
+    .select('*')
+    .order('due_date', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((f: any) => ({
+    id: f.id,
+    filingName: f.filing_name,
+    filingType: f.filing_type,
+    dueDate: f.due_date,
+    status: f.status,
+    filedAt: f.filed_at,
+    filedBy: f.filed_by,
+    documentUrl: f.document_url,
+    notes: f.notes,
+    createdBy: f.created_by,
+    createdAt: f.created_at,
+  }));
+}
+
+export async function getCashReleases(): Promise<CashRelease[]> {
+  const { data, error } = await supabase
+    .from('cash_releases')
+    .select(
+      `
+      *,
+      preparer:profiles!cash_releases_prepared_by_fkey ( display_name ),
+      approver:profiles!cash_releases_approved_by_fkey ( display_name ),
+      recipient:profiles!cash_releases_recipient_id_fkey ( display_name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((c: any) => ({
+    id: c.id,
+    preparedBy: c.prepared_by,
+    preparedByName: c.preparer?.display_name || 'Unknown',
+    approvedBy: c.approved_by,
+    recipientId: c.recipient_id,
+    recipientName: c.recipient?.display_name || 'Unknown',
+    amountCents: c.amount_cents,
+    currency: c.currency,
+    purpose: c.purpose,
+    justification: c.justification,
+    ledgerEntryIds: c.ledger_entry_ids || [],
+    authority: c.authority,
+    status: c.status,
+    preparedAt: c.prepared_at,
+    approvedAt: c.approved_at,
+    releasedAt: c.released_at,
+    createdAt: c.created_at,
+  }));
+}
+
+export async function prepareCashRelease(data: {
+  recipientId: string;
+  amountCents: number;
+  currency: string;
+  purpose: string;
+  justification: string;
+  ledgerEntryIds: string[];
+  authority: string;
+}): Promise<{ releaseId: string }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: releaseId, error } = await supabase.rpc('prepare_cash_release', {
+    p_recipient_id: data.recipientId,
+    p_amount_cents: data.amountCents,
+    p_currency: data.currency,
+    p_purpose: data.purpose,
+    p_justification: data.justification,
+    p_ledger_entry_ids: data.ledgerEntryIds,
+    p_authority: data.authority,
+  });
+  if (error) throw new Error(error.message);
+  return { releaseId: releaseId as string };
+}
+
+export async function approveCashRelease(releaseId: string, approve: boolean): Promise<void> {
+  const { error } = await supabase.rpc('approve_cash_release', {
+    p_release_id: releaseId,
+    p_approve: approve,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function releaseCash(releaseId: string): Promise<void> {
+  const { error } = await supabase.rpc('release_cash', {
+    p_release_id: releaseId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPermissionBundleHolders(): Promise<PermissionBundleHolder[]> {
+  const { data, error } = await supabase
+    .from('permission_bundle_holders')
+    .select(
+      `
+      *,
+      holder:profiles!permission_bundle_holders_holder_id_fkey ( display_name ),
+      assigner:profiles!permission_bundle_holders_assigned_by_fkey ( display_name )
+    `
+    )
+    .order('bundle_name', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((b: any) => ({
+    id: b.id,
+    bundleName: b.bundle_name,
+    holderType: b.holder_type,
+    holderId: b.holder_id,
+    holderName: b.holder?.display_name || null,
+    holderGroup: b.holder_group,
+    assignedBy: b.assigned_by,
+    assignedAt: b.assigned_at,
+    effectiveFrom: b.effective_from,
+    motionId: b.motion_id,
+  }));
+}
+
+export async function assignPermissionBundleHolder(data: {
+  bundleName: string;
+  holderType: 'group' | 'person' | 'committee';
+  holderId: string | null;
+  holderGroup: string | null;
+  motionId: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc('assign_permission_bundle_holder', {
+    p_bundle_name: data.bundleName,
+    p_holder_type: data.holderType,
+    p_holder_id: data.holderId,
+    p_holder_group: data.holderGroup,
+    p_motion_id: data.motionId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function markRedemptionShipped(
+  redemptionId: string,
+  trackingInfo: string
+): Promise<void> {
+  const { error } = await supabase.rpc('update_redemption_status', {
+    p_redemption_id: redemptionId,
+    p_new_status: 'shipped',
+    p_tracking_info: trackingInfo,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function markRedemptionCollected(redemptionId: string): Promise<void> {
+  const { error } = await supabase.rpc('update_redemption_status', {
+    p_redemption_id: redemptionId,
+    p_new_status: 'collected',
+    p_tracking_info: '',
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Phase 9.2: Integrations and Import ───────────────────────
+
+export type IntegrationProvider = 'github' | 'discord' | 'social';
+
+export interface Integration {
+  id: string;
+  provider: IntegrationProvider;
+  connected: boolean;
+  connectedAt?: string | null;
+  connectedBy?: string | null;
+  config: Record<string, unknown>;
+  lastSyncAt?: string | null;
+  ingestedSummary?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ImportJob {
+  id: string;
+  fileName: string;
+  status: 'pending' | 'completed' | 'failed';
+  rowCount: number;
+  importedCount: number;
+  errorCount: number;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface ImportRow {
+  member: string;
+  activity: string;
+  date: string;
+  exp: number;
+}
+
+export interface ImportResult {
+  imported: number;
+  errors: string[];
+}
+
+export interface MemberOption {
+  id: string;
+  username: string;
+  displayName: string;
+}
+
+export async function getIntegrations(): Promise<Integration[]> {
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('*')
+    .order('provider', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    provider: row.provider,
+    connected: row.connected,
+    connectedAt: row.connected_at ?? null,
+    connectedBy: row.connected_by ?? null,
+    config: row.config ?? {},
+    lastSyncAt: row.last_sync_at ?? null,
+    ingestedSummary: row.ingested_summary ?? null,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
+  }));
+}
+
+export async function toggleIntegration(
+  provider: IntegrationProvider,
+  connected: boolean
+): Promise<void> {
+  const { error } = await supabase.rpc('toggle_integration', {
+    p_provider: provider,
+    p_connected: connected,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getImportJobs(): Promise<ImportJob[]> {
+  const { data, error } = await supabase
+    .from('import_jobs')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    fileName: row.file_name,
+    status: row.status,
+    rowCount: row.row_count,
+    importedCount: row.imported_count,
+    errorCount: row.error_count,
+    createdBy: row.created_by ?? null,
+    createdAt: row.created_at ?? null,
+    completedAt: row.completed_at ?? null,
+  }));
+}
+
+export async function createImportJob(fileName: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('import_jobs')
+    .insert({ file_name: fileName, status: 'pending', row_count: 0 })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return String(data?.id);
+}
+
+export async function confirmImport(jobId: string, rows: ImportRow[]): Promise<ImportResult> {
+  const { data, error } = await supabase.rpc('import_csv_claims', {
+    p_job_id: jobId,
+    p_claims: rows,
+  });
+  if (error) throw new Error(error.message);
+  return {
+    imported: Number((data as any)?.imported ?? 0),
+    errors: Array.isArray((data as any)?.errors) ? (data as any).errors : [],
+  };
+}
+
+export async function getMembers(): Promise<MemberOption[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, username, display_name')
+    .order('display_name', { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((m) => ({
+    id: m.id,
+    username: m.username,
+    displayName: m.display_name,
+  }));
+}
+
+// ─── Phase 9.1: Partners ───────────────────────────────────────
+
+export type PartnerTier = 'friend' | 'partner' | 'strategic';
+export type PartnerStatus = 'active' | 'inactive' | 'prospect';
+
+export interface Partner {
+  id: string;
+  name: string;
+  tier: PartnerTier;
+  description?: string | null;
+  website?: string | null;
+  contactEmail?: string | null;
+  contactName?: string | null;
+  logoUrl?: string | null;
+  status: PartnerStatus;
+  joinedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface PartnerScorecard {
+  id: string;
+  partnerId: string;
+  partnerName?: string | null;
+  collaborations: number;
+  jamsCohosted: number;
+  projectsDelivered: number;
+  memberFeedbackScore?: number | null;
+  feedbackCount: number;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface PartnerRep {
+  id: string;
+  profileId: string;
+  profileName?: string | null;
+  partnerId: string;
+  partnerName?: string | null;
+  role: string;
+  isPrimary: boolean;
+  activeFrom?: string | null;
+  activeTo?: string | null;
+}
+
+export interface PartnerEvent {
+  id: string;
+  partnerId: string;
+  partnerName?: string | null;
+  title: string;
+  eventType: 'event' | 'jam';
+  description?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  location?: string | null;
+  isVirtual: boolean;
+  status: string;
+  createdAt?: string | null;
+}
+
+export interface PartnerOpportunity {
+  id: string;
+  partnerId: string;
+  partnerName?: string | null;
+  title: string;
+  opType: 'opportunity' | 'jam';
+  description?: string | null;
+  link?: string | null;
+  status: string;
+  expiresAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface PartnerProject {
+  id: string;
+  partnerId: string;
+  partnerName?: string | null;
+  title: string;
+  description?: string | null;
+  status: string;
+  createdAt?: string | null;
+}
+
+export interface PartnerSplit {
+  id: string;
+  sourceType: 'claim' | 'project';
+  sourceId: string;
+  partnerSharePercent: number;
+  memberSharePercent: number;
+  status: string;
+  coSignedBy?: string | null;
+  coSignedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface GuestPass {
+  id: string;
+  partnerId: string;
+  partnerName?: string | null;
+  issuedBy?: string | null;
+  guestEmail: string;
+  guestName: string;
+  purpose?: string | null;
+  issuedAt?: string | null;
+  expiresAt?: string | null;
+  status: string;
+  usedAt?: string | null;
+}
+
+export async function getPartners(filters?: {
+  tier?: PartnerTier;
+  status?: PartnerStatus;
+  search?: string;
+}): Promise<Partner[]> {
+  let query = supabase.from('partners').select('*').order('name', { ascending: true });
+
+  if (filters?.tier) query = query.eq('tier', filters.tier);
+  if (filters?.status) query = query.eq('status', filters.status);
+  if (filters?.search) {
+    query = query.ilike('name', `%${filters.search}%`);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((p) => ({
+    id: p.id,
+    name: p.name,
+    tier: p.tier,
+    description: p.description ?? null,
+    website: p.website ?? null,
+    contactEmail: p.contact_email ?? null,
+    contactName: p.contact_name ?? null,
+    logoUrl: p.logo_url ?? null,
+    status: p.status,
+    joinedAt: p.joined_at ?? null,
+    createdAt: p.created_at ?? null,
+  }));
+}
+
+export async function createPartner(data: {
+  name: string;
+  tier: PartnerTier;
+  description?: string | null;
+  website?: string | null;
+  contactEmail?: string | null;
+  contactName?: string | null;
+  logoUrl?: string | null;
+  status?: PartnerStatus;
+}): Promise<void> {
+  const { error } = await supabase.from('partners').insert({
+    name: data.name,
+    tier: data.tier,
+    description: data.description ?? null,
+    website: data.website ?? null,
+    contact_email: data.contactEmail ?? null,
+    contact_name: data.contactName ?? null,
+    logo_url: data.logoUrl ?? null,
+    status: data.status ?? 'active',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPartnerScorecards(): Promise<PartnerScorecard[]> {
+  const { data, error } = await supabase
+    .from('partner_scorecard')
+    .select(
+      `
+      *,
+      partners ( name )
+    `
+    )
+    .order('updated_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    collaborations: row.collaborations,
+    jamsCohosted: row.jams_cohosted,
+    projectsDelivered: row.projects_delivered,
+    memberFeedbackScore: row.member_feedback_score ?? null,
+    feedbackCount: row.feedback_count,
+    periodStart: row.period_start ?? null,
+    periodEnd: row.period_end ?? null,
+    updatedAt: row.updated_at ?? null,
+  }));
+}
+
+export async function upsertPartnerScorecard(data: {
+  partnerId: string;
+  collaborations: number;
+  jamsCohosted: number;
+  projectsDelivered: number;
+  memberFeedbackScore?: number | null;
+  feedbackCount: number;
+  periodStart: string;
+  periodEnd: string;
+}): Promise<void> {
+  const { error } = await supabase.from('partner_scorecard').upsert(
+    {
+      partner_id: data.partnerId,
+      collaborations: data.collaborations,
+      jams_cohosted: data.jamsCohosted,
+      projects_delivered: data.projectsDelivered,
+      member_feedback_score: data.memberFeedbackScore ?? null,
+      feedback_count: data.feedbackCount,
+      period_start: data.periodStart,
+      period_end: data.periodEnd,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'partner_id, period_start, period_end' }
+  );
+  if (error) throw new Error(error.message);
+}
+
+export async function getPartnerReps(): Promise<PartnerRep[]> {
+  const { data, error } = await supabase
+    .from('partner_reps')
+    .select(
+      `*,
+      profiles ( display_name ),
+      partners ( name )`
+    )
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    profileId: row.profile_id,
+    profileName: row.profiles?.display_name ?? null,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    role: row.role,
+    isPrimary: row.is_primary,
+    activeFrom: row.active_from ?? null,
+    activeTo: row.active_to ?? null,
+  }));
+}
+
+export async function getPartnerEvents(filters?: {
+  partnerId?: string;
+  status?: string;
+  eventType?: 'event' | 'jam';
+}): Promise<PartnerEvent[]> {
+  let query = supabase
+    .from('partner_events')
+    .select(
+      `
+      *,
+      partners ( name )
+    `
+    )
+    .order('starts_at', { ascending: true });
+
+  if (filters?.partnerId) query = query.eq('partner_id', filters.partnerId);
+  if (filters?.status) query = query.eq('status', filters.status);
+  if (filters?.eventType) query = query.eq('event_type', filters.eventType);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    title: row.title,
+    eventType: row.event_type,
+    description: row.description ?? null,
+    startsAt: row.starts_at ?? null,
+    endsAt: row.ends_at ?? null,
+    location: row.location ?? null,
+    isVirtual: row.is_virtual,
+    status: row.status,
+    createdAt: row.created_at ?? null,
+  }));
+}
+
+export async function createPartnerEvent(data: {
+  partnerId: string;
+  title: string;
+  eventType: 'event' | 'jam';
+  description?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  location?: string | null;
+  isVirtual?: boolean;
+}): Promise<void> {
+  const { error } = await supabase.from('partner_events').insert({
+    partner_id: data.partnerId,
+    title: data.title,
+    event_type: data.eventType,
+    description: data.description ?? null,
+    starts_at: data.startsAt ?? null,
+    ends_at: data.endsAt ?? null,
+    location: data.location ?? null,
+    is_virtual: data.isVirtual ?? true,
+    status: 'draft',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPartnerOpportunities(filters?: {
+  partnerId?: string;
+  status?: string;
+}): Promise<PartnerOpportunity[]> {
+  let query = supabase
+    .from('partner_opportunities')
+    .select(
+      `
+      *,
+      partners ( name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (filters?.partnerId) query = query.eq('partner_id', filters.partnerId);
+  if (filters?.status) query = query.eq('status', filters.status);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    title: row.title,
+    opType: row.op_type,
+    description: row.description ?? null,
+    link: row.link ?? null,
+    status: row.status,
+    expiresAt: row.expires_at ?? null,
+    createdAt: row.created_at ?? null,
+  }));
+}
+
+export async function postPartnerOpportunity(data: {
+  partnerId: string;
+  title: string;
+  opType: 'opportunity' | 'jam';
+  description?: string | null;
+  link?: string | null;
+  expiresAt?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from('partner_opportunities').insert({
+    partner_id: data.partnerId,
+    title: data.title,
+    op_type: data.opType,
+    description: data.description ?? null,
+    link: data.link ?? null,
+    status: 'open',
+    expires_at: data.expiresAt ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPartnerProjects(filters?: {
+  partnerId?: string;
+  status?: string;
+}): Promise<PartnerProject[]> {
+  let query = supabase
+    .from('partner_projects')
+    .select(
+      `
+      *,
+      partners ( name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (filters?.partnerId) query = query.eq('partner_id', filters.partnerId);
+  if (filters?.status) query = query.eq('status', filters.status);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    title: row.title,
+    description: row.description ?? null,
+    status: row.status,
+    createdAt: row.created_at ?? null,
+  }));
+}
+
+export async function proposePartnerProject(data: {
+  partnerId: string;
+  title: string;
+  description?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from('partner_projects').insert({
+    partner_id: data.partnerId,
+    title: data.title,
+    description: data.description ?? null,
+    status: 'proposed',
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getPartnerSplits(filters?: {
+  sourceType?: 'claim' | 'project';
+  sourceId?: string;
+  status?: string;
+}): Promise<PartnerSplit[]> {
+  let query = supabase.from('partner_splits').select('*').order('created_at', { ascending: false });
+
+  if (filters?.sourceType) query = query.eq('source_type', filters.sourceType);
+  if (filters?.sourceId) query = query.eq('source_id', filters.sourceId);
+  if (filters?.status) query = query.eq('status', filters.status);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    partnerSharePercent: row.partner_share_percent,
+    memberSharePercent: row.member_share_percent,
+    status: row.status,
+    coSignedBy: row.co_signed_by ?? null,
+    coSignedAt: row.co_signed_at ?? null,
+    createdAt: row.created_at ?? null,
+  }));
+}
+
+export async function coSignSplit(data: {
+  sourceType: 'claim' | 'project';
+  sourceId: string;
+  partnerSharePercent: number;
+  memberSharePercent: number;
+}): Promise<void> {
+  const { error } = await supabase.from('partner_splits').insert({
+    source_type: data.sourceType,
+    source_id: data.sourceId,
+    partner_share_percent: data.partnerSharePercent,
+    member_share_percent: data.memberSharePercent,
+    status: 'co_signed',
+    co_signed_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getGuestPasses(filters?: {
+  partnerId?: string;
+  status?: string;
+}): Promise<GuestPass[]> {
+  let query = supabase
+    .from('guest_passes')
+    .select(
+      `
+      *,
+      partners ( name )
+    `
+    )
+    .order('created_at', { ascending: false });
+
+  if (filters?.partnerId) query = query.eq('partner_id', filters.partnerId);
+  if (filters?.status) query = query.eq('status', filters.status);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partners?.name ?? null,
+    issuedBy: row.issued_by ?? null,
+    guestEmail: row.guest_email,
+    guestName: row.guest_name,
+    purpose: row.purpose ?? null,
+    issuedAt: row.issued_at ?? null,
+    expiresAt: row.expires_at ?? null,
+    status: row.status,
+    usedAt: row.used_at ?? null,
+  }));
+}
+
+export async function issueGuestPass(data: {
+  partnerId: string;
+  guestEmail: string;
+  guestName: string;
+  purpose?: string | null;
+  expiresAt: string;
+}): Promise<void> {
+  const { error } = await supabase.from('guest_passes').insert({
+    partner_id: data.partnerId,
+    guest_email: data.guestEmail,
+    guest_name: data.guestName,
+    purpose: data.purpose ?? null,
+    expires_at: data.expiresAt,
+    status: 'active',
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Phase 9.3: Transcript and alumni ───────────────────────
+
+export type ExpCategoryLabel = Record<string, string>;
+
+export const EXP_CATEGORY_LABELS: ExpCategoryLabel = {
+  technology_innovation_wisdom: 'Technology & Innovation',
+  motivation_initiative_learning_mindset: 'Motivation & Learning',
+  social_soft_skills: 'Social & Soft Skills',
+  leadership_management: 'Leadership & Management',
+};
+
+export const EXP_CATEGORY_ORDER: string[] = [
+  'technology_innovation_wisdom',
+  'motivation_initiative_learning_mindset',
+  'social_soft_skills',
+  'leadership_management',
+];
+
+export function transcriptPeriod(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed: 0=Jan
+  // Academic year: July-June. If month >= July (6), academic year starts this July.
+  const startYear = month >= 6 ? year : year - 1;
+  const endYear = startYear + 1;
+  return `${startYear}-${endYear} Academic Year`;
+}
+
+export interface TranscriptCategoryTotal {
+  category: string;
+  label: string;
+  totalXP: number;
+  count: number;
+}
+
+export interface TranscriptContribution {
+  id: string;
+  activityTitle: string;
+  activityDomain: ActivityDomain;
+  category: string;
+  xpCredited: number;
+  submittedAt: string;
+  status: ClaimStatus;
+}
+
+export interface TranscriptData {
+  member: Member & {
+    isAlumni: boolean;
+    alumniBadge?: string | null;
+    transcriptCode?: string | null;
+    transcriptGeneratedAt?: string | null;
+  };
+  period: string;
+  totalXP: number;
+  categoryTotals: TranscriptCategoryTotal[];
+  keyContributions: TranscriptContribution[];
+  verificationCode?: string | null;
+}
+
+export interface TranscriptVerification {
+  valid: boolean;
+  memberId?: string;
+  name?: string;
+  username?: string;
+  branch?: string;
+  domain?: string;
+  totalExp?: number;
+  level?: number;
+  leagueTier?: string;
+  alumniBadge?: string | null;
+  transcriptGeneratedAt?: string | null;
+  error?: string;
+}
+
+export async function toggleAlumniMode(): Promise<string> {
+  const { data, error } = await supabase.rpc('toggle_alumni_mode');
+  if (error) throw new Error(error.message);
+  return String(data);
+}
+
+export async function getTranscript(): Promise<TranscriptData> {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error('Not authenticated');
+
+  // Member profile
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select(
+      `
+      *,
+      branches ( name ),
+      domains ( name )
+    `
+    )
+    .eq('id', user.id)
+    .single();
+  if (profileError || !profile) throw new Error('Profile not found');
+
+  const levelInfo = xpToLevel(profile.total_exp ?? 0);
+
+  // Category totals from ledger entries (approved claims)
+  const { data: ledgerRows, error: ledgerError } = await supabase
+    .from('ledger_entries')
+    .select('category, amount')
+    .eq('member_id', user.id)
+    .eq('source', 'claim');
+  if (ledgerError) throw new Error(ledgerError.message);
+
+  const categoryMap = new Map<string, { total: number; count: number }>();
+  for (const row of ledgerRows ?? []) {
+    const cat = row.category as string;
+    const cur = categoryMap.get(cat) || { total: 0, count: 0 };
+    categoryMap.set(cat, { total: cur.total + (row.amount ?? 0), count: cur.count + 1 });
+  }
+  const categoryTotals: TranscriptCategoryTotal[] = EXP_CATEGORY_ORDER.map((cat) => {
+    const cur = categoryMap.get(cat);
+    return {
+      category: cat,
+      label: EXP_CATEGORY_LABELS[cat],
+      totalXP: cur ? cur.total : 0,
+      count: cur ? cur.count : 0,
+    };
+  });
+
+  // Key contributions: top approved claims
+  const { data: claimRows, error: claimError } = await supabase
+    .from('claims')
+    .select(
+      `
+      id, title, activity_domain, xp_credited, suggested_exp, submitted_at, status,
+      activity_types ( name, category )
+    `
+    )
+    .eq('claimant_id', user.id)
+    .eq('status', 'approved')
+    .order('reviewed_score', { ascending: false })
+    .limit(10);
+  if (claimError) throw new Error(claimError.message);
+
+  const keyContributions: TranscriptContribution[] = (claimRows ?? []).map((c: any) => ({
+    id: c.id,
+    activityTitle: c.title,
+    activityDomain: c.activity_domain,
+    category: c.activity_types?.category ?? 'technical_innovation_wisdom',
+    xpCredited: c.xp_credited ?? c.suggested_exp,
+    submittedAt: c.submitted_at,
+    status: c.status,
+  }));
+
+  const totalXP = categoryTotals.reduce((s, c) => s + c.totalXP, 0);
+
+  return {
+    member: {
+      ...profile,
+      isAlumni: profile.is_alumni ?? false,
+      alumniBadge: profile.alumni_badge ?? null,
+      transcriptCode: profile.transcript_code ?? null,
+      transcriptGeneratedAt: profile.transcript_generated_at ?? null,
+    } as Member & {
+      isAlumni: boolean;
+      alumniBadge?: string | null;
+      transcriptCode?: string | null;
+      transcriptGeneratedAt?: string | null;
+    },
+    period: transcriptPeriod(),
+    totalXP,
+    categoryTotals,
+    keyContributions,
+    verificationCode: profile.transcript_code ?? null,
+  };
+}
+
+export async function verifyTranscript(code: string): Promise<TranscriptVerification> {
+  const { data, error } = await supabase.rpc('verify_transcript', { p_code: code });
+  if (error) throw new Error(error.message);
+  return data as TranscriptVerification;
 }

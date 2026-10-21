@@ -1,0 +1,106 @@
+{
+  "id": "/",
+  "name": "GDU XP",
+  "short_name": "GDU XP",
+  "description": "Track community contributions as XP, level up through leagues, and earn recognition.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1020",
+  "theme_color": "#7C5CFF",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "productivity", "social"],
+  "icons": [
+    {
+      "src": "/assets/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/assets/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "GDU XP dashboard showing leaderboard and activity feed"
+    },
+    {
+      "src": "/assets/screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "GDU XP mobile transcript page"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Activities",
+      "short_name": "Activities",
+      "description": "Browse and submit club activities",
+      "url": "/activities",
+      "icons": [{ "src": "/assets/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Transcript",
+      "short_name": "Transcript",
+      "description": "View and share your contribution transcript",
+      "url": "/transcript",
+      "icons": [{ "src": "/assets/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Leaderboard",
+      "short_name": "Leaderboard",
+      "description": "See XP rankings across branches",
+      "url": "/leaderboard",
+      "icons": [{ "src": "/assets/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

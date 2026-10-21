@@ -6,10 +6,19 @@ import LandingHero from './components/LandingHero';
 import HowItWorks from './components/HowItWorks';
 import StatsStrip from './components/StatsStrip';
 
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import LandingHero from './components/LandingHero';
+import HowItWorks from './components/HowItWorks';
+import StatsStrip from './components/StatsStrip';
+import ProductTour from '@/components/ui/ProductTour';
+
 export default function LandingPage() {
   const { user, isLoading, loginWithDiscord } = useAuth();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -22,6 +31,13 @@ export default function LandingPage() {
     }
   }, [user, isLoading, router]);
 
+  useEffect(() => {
+    // Show the product tour once for new signed-in users
+    if (user && localStorage.getItem('gduxp:tour-seen') !== '1') {
+      setTourOpen(true);
+    }
+  }, [user]);
+
   if (isLoading || redirecting) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -31,38 +47,48 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background overflow-x-hidden">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-violet-500/5 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-cyan-400/5 blur-[100px]" />
-        <div className="absolute top-[40%] left-[50%] w-[400px] h-[400px] rounded-full bg-lime-400/3 blur-[80px]" />
-      </div>
+    <>
+      <main className="min-h-screen bg-background overflow-x-hidden">
+        {/* Ambient background */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-violet-500/5 blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-cyan-400/5 blur-[100px]" />
+          <div className="absolute top-[40%] left-[50%] w-[400px] h-[400px] rounded-full bg-lime-400/3 blur-[80px]" />
+        </div>
 
-      <div className="relative z-10">
-        <LandingHero onLogin={loginWithDiscord} />
-        <HowItWorks />
-        <StatsStrip />
+        <div className="relative z-10">
+          <LandingHero onLogin={loginWithDiscord} />
+          <HowItWorks />
+          <StatsStrip />
 
-        {/* Bottom CTA */}
-        <section className="py-20 px-4 text-center">
-          <p className="text-muted-foreground text-sm mb-4 font-sans">
-            Join 340+ game dev students already levelling up
-          </p>
-          <button
-            onClick={loginWithDiscord}
-            className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-heading font-semibold text-lg text-white transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, #5865F2 0%, #7C5CFF 100%)',
-              boxShadow: '0 0 32px rgba(88,101,242,0.35)',
-            }}
-          >
-            <DiscordIcon />
-            Continue with Discord
-          </button>
-        </section>
-      </div>
-    </main>
+          {/* Bottom CTA */}
+          <section className="py-20 px-4 text-center">
+            <p className="text-muted-foreground text-sm mb-4 font-sans">
+              Join 340+ game dev students already levelling up
+            </p>
+            <button
+              onClick={loginWithDiscord}
+              className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-heading font-semibold text-lg text-white transition-all duration-200 hover:scale-105 active:scale-95"
+              style={{
+                background: 'linear-gradient(135deg, #5865F2 0%, #7C5CFF 100%)',
+                boxShadow: '0 0 32px rgba(88,101,242,0.35)',
+              }}
+            >
+              <DiscordIcon />
+              Continue with Discord
+            </button>
+          </section>
+        </div>
+      </main>
+
+      <ProductTour
+        open={tourOpen}
+        onClose={() => {
+          setTourOpen(false);
+          localStorage.setItem('gduxp:tour-seen', '1');
+        }}
+      />
+    </>
   );
 }
 

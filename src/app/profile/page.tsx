@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getCurrentMember, getMyClaims, getWeeklyXP } from '@/lib/api';
+import { getCurrentMember, getMyClaims, getWeeklyXP, toggleAlumniMode } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
 import XPBar from '@/components/ui/XPBar';
-import AppIcon from '@/components/ui/AppIcon';
+import { Shield } from 'lucide-react';
 
 const CATEGORY_COLORS: Record<string, string> = {
   technology_innovation_wisdom: '#7C5CFF',
@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const [claims, setClaims] = useState<any[]>([]);
   const [weeklyXP, setWeeklyXP] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alumniLoading, setAlumniLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && user) {
@@ -38,6 +39,23 @@ export default function ProfilePage() {
     setClaims(claimsData);
     setWeeklyXP(weeklyData);
     setLoading(false);
+  }
+
+  async function handleToggleAlumni() {
+    setAlumniLoading(true);
+    try {
+      const msg = await toggleAlumniMode();
+      alert(msg);
+      setMember((prev: any) => ({
+        ...prev,
+        isAlumni: !prev.isAlumni,
+        alumniBadge: !prev.isAlumni ? 'Alumni · ' + new Date().getFullYear() : null,
+      }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to toggle alumni mode.');
+    } finally {
+      setAlumniLoading(false);
+    }
   }
 
   const categoryXP = [
@@ -84,12 +102,17 @@ export default function ProfilePage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium">
+            <span className="px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20">
               Level {member.level}
             </span>
-            <span className="px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium">
+            <span className="px-3 py-1 rounded-full bg-accent-soft text-accent text-xs font-medium border border-accent/20">
               {member.leagueTier}
             </span>
+            {member.isAlumni && (
+              <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium border border-green-200">
+                {member.alumniBadge || 'Alumnus'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -198,6 +221,30 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {member.isAlumni ? null : (
+          <div className="rounded-xl p-6 bg-card border border-line">
+            <div className="flex items-center justify-between mb-4">
+              <Shield size={20} className="text-accent" />
+              <h3 className="font-heading font-bold text-ink">Graduate as Alumnus</h3>
+            </div>
+            <p className="text-mute text-sm mb-4">
+              Freeze your profile as an alumnus and receive a permanent alumni badge plus a public
+              transcript verification code.
+            </p>
+            <button
+              onClick={handleToggleAlumni}
+              disabled={alumniLoading}
+              className="w-full px-4 py-3 rounded-lg bg-accent text-white font-medium disabled:opacity-50 hover:bg-accent/90 transition-colors"
+            >
+              {alumniLoading ? 'Freezing profile…' : 'Become Alumnus'}
+            </button>
+            <p className="text-[10px] text-mute mt-3">
+              Once enabled, your profile is frozen and your transcript becomes publicly verifiable
+              at /verify.
+            </p>
+          </div>
+        )}
 
         <div className="rounded-xl bg-card border border-line overflow-hidden">
           <h3 className="px-6 py-4 font-heading font-bold text-ink border-b border-line">

@@ -29,6 +29,22 @@ export const metadata: Metadata = {
     'GDU XP tracks community contributions as experience points, helping GameDevUtopia students level up through daily activities, streaks, and leagues.',
   icons: {
     icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+    apple: [{ url: '/assets/icon-180x180.png', sizes: '180x180', type: 'image/png' }],
+  },
+  manifest: '/manifest.json',
+  themeColor: '#7C5CFF',
+  openGraph: {
+    title: 'GDU XP — Level Up Your Game Dev Journey',
+    description:
+      'GDU XP tracks community contributions as experience points, helping GameDevUtopia students level up through daily activities, streaks, and leagues.',
+    type: 'website',
+    url: 'https://gduxp.example.com',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'GDU XP — Level Up Your Game Dev Journey',
+    description:
+      'GDU XP tracks community contributions as experience points, helping GameDevUtopia students level up through daily activities, streaks, and leagues.',
   },
 };
 
