@@ -665,6 +665,10 @@ export async function getActivities(filters?: {
       id: at.id,
       title: at.name,
       description: at.description || `${at.category} activity`,
+      category: at.category as ExpCategory,
+      subcategoryId: at.subcategory_id || null,
+      expMin: at.exp_min,
+      expMax: at.exp_max,
       domain: (at.domains as any)?.name as ActivityDomain,
       difficulty: at.difficulty,
       xpReward,
@@ -707,7 +711,7 @@ function seedActivitiesToActivity(filters?: {
   branch?: Branch | 'all';
   search?: string;
 }): Promise<Activity[]> {
-  const MOCK_ACTIVITIES: Activity[] = [
+  const MOCK_ACTIVITIES_RAW: Omit<Activity, 'category' | 'subcategoryId' | 'expMin' | 'expMax'>[] = [
     {
       id: 'act-001',
       title: 'Global Game Jam 2026 — Team Lead',
@@ -824,6 +828,13 @@ function seedActivitiesToActivity(filters?: {
     },
   ];
 
+  const MOCK_ACTIVITIES: Activity[] = MOCK_ACTIVITIES_RAW.map((a) => ({
+    ...a,
+    category: 'technical' as ExpCategory,
+    subcategoryId: null,
+    expMin: a.xpReward,
+    expMax: a.xpReward,
+  }));
   let results = [...MOCK_ACTIVITIES];
   if (filters?.domain) results = results.filter((a) => a.domain === filters.domain);
   if (filters?.status) results = results.filter((a) => a.status === filters.status);
@@ -1057,6 +1068,9 @@ export async function getMyClaims(): Promise<Claim[]> {
     submittedAt: c.created_at,
     status: c.status as ClaimStatus,
     proofUrl: c.evidence_links?.[0] || '',
+    proofFiles: [],
+    confirmationRequired: c.status === 'awaiting_confirmation',
+    confirmationResponded: false,
     notes: c.analysis_pointers,
     reviewerId: c.reviewer_id,
     reviewerName: c.profiles?.display_name,
@@ -1083,7 +1097,7 @@ export async function submitClaim(data: {
   if (!user) throw new Error('Not authenticated');
 
   const contributorsJson = data.contributors.map((c) => ({
-    member_id: c.memberId,
+    member_id: c.memberId === 'current-user' ? user.id : c.memberId,
     share_percent: c.sharePercent,
   }));
 
@@ -1422,8 +1436,9 @@ export async function getLeagueProgress(totalExp: number): Promise<LeagueProgres
   return { currentTier, nextTier, progressPercent, expToNext };
 }
 
-export async function assignLeagueTier(profileId: string): Promise<void> {
-  const { error } = await supabase.rpc('assign_league_tier', { p_profile_id: profileId });
+// The tier is derived on the server; this only recalculates the signed-in member's own tier.
+export async function assignLeagueTier(_profileId?: string): Promise<void> {
+  const { error } = await supabase.rpc('refresh_my_league_tier');
   if (error) throw new Error(error.message);
 }
 
@@ -1436,6 +1451,9 @@ export interface ProofFile {
   url: string;
   uploadedAt: string;
 }
+
+// The claim_proofs bucket is private, so proofs are shown through short-lived signed URLs.
+const PROOF_URL_TTL_SECONDS = 60 * 60;
 
 export async function uploadProof(claimId: string, files: File[]): Promise<ProofFile[]> {
   const {
@@ -1465,7 +1483,9 @@ export async function uploadProof(claimId: string, files: File[]): Promise<Proof
 
     if (error) throw new Error(error.message);
 
-    const { data: urlData } = await supabase.storage.from('claim_proofs').getPublicUrl(storagePath);
+    const { data: signed } = await supabase.storage
+      .from('claim_proofs')
+      .createSignedUrl(storagePath, PROOF_URL_TTL_SECONDS);
 
     const { data: proofRecord, error: dbError } = await supabase
       .from('proof_files')
@@ -1475,7 +1495,6 @@ export async function uploadProof(claimId: string, files: File[]): Promise<Proof
         file_size: file.size,
         file_type: file.type,
         storage_path: storagePath,
-        url: urlData.publicUrl,
       })
       .select()
       .single();
@@ -1488,7 +1507,7 @@ export async function uploadProof(claimId: string, files: File[]): Promise<Proof
       fileSize: proofRecord.file_size,
       fileType: proofRecord.file_type,
       storagePath: proofRecord.storage_path,
-      url: proofRecord.url,
+      url: signed?.signedUrl ?? '',
       uploadedAt: proofRecord.uploaded_at,
     });
   }
@@ -1505,13 +1524,21 @@ export async function getProofFiles(claimId: string): Promise<ProofFile[]> {
 
   if (error || !data) return [];
 
+  const { data: signed } = await supabase.storage
+    .from('claim_proofs')
+    .createSignedUrls(
+      data.map((p: any) => p.storage_path),
+      PROOF_URL_TTL_SECONDS
+    );
+  const urlByPath = new Map((signed ?? []).map((u) => [u.path, u.signedUrl]));
+
   return data.map((p: any) => ({
     id: p.id,
     fileName: p.file_name,
     fileSize: p.file_size,
     fileType: p.file_type,
     storagePath: p.storage_path,
-    url: p.url,
+    url: urlByPath.get(p.storage_path) ?? '',
     uploadedAt: p.uploaded_at,
   }));
 }
@@ -1572,6 +1599,7 @@ export async function proposeActivity(data: {
   category: ExpCategory;
   subcategoryId: string | null;
   domainId: string | null;
+  kind?: string;
   expMin: number;
   expMax: number;
   seasonCap: number | null;
@@ -1591,6 +1619,7 @@ export async function proposeActivity(data: {
     p_category: data.category,
     p_subcategory_id: data.subcategoryId,
     p_domain_id: data.domainId,
+    p_kind: data.kind ?? 'increment',
     p_exp_min: data.expMin,
     p_exp_max: data.expMax,
     p_season_cap: data.seasonCap,
@@ -1801,17 +1830,17 @@ export async function getMemberBadges(memberId?: string): Promise<MemberBadge[]>
 }
 
 export async function awardBadge(memberId: string, badgeId: string): Promise<void> {
-  const { error } = await supabase.rpc('award_badge', {
+  // Admin / board only (checked in the database).
+  const { error } = await supabase.rpc('admin_award_badge', {
     p_member_id: memberId,
     p_badge_id: badgeId,
   });
   if (error) throw new Error(error.message);
 }
 
-export async function checkAndAwardBadges(memberId: string): Promise<void> {
-  const { error } = await supabase.rpc('check_and_award_badges', {
-    p_member_id: memberId,
-  });
+// Always evaluates the signed-in member; the argument is kept for existing callers.
+export async function checkAndAwardBadges(_memberId?: string): Promise<void> {
+  const { error } = await supabase.rpc('check_my_badges');
   if (error) throw new Error(error.message);
 }
 
@@ -1931,8 +1960,7 @@ export async function getOrCreateMemberQuest(questId: string): Promise<string> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data: mqId, error } = await supabase.rpc('get_or_create_member_quest', {
-    p_member_id: user.id,
+  const { data: mqId, error } = await supabase.rpc('ensure_my_quest', {
     p_quest_id: questId,
   });
   if (error) throw new Error(error.message);
@@ -2084,33 +2112,19 @@ export async function createMotion(data: {
 }
 
 export async function openMotion(motionId: string): Promise<void> {
-  const { error } = await supabase
-    .from('motions')
-    .update({ status: 'open', opened_at: new Date().toISOString() })
-    .eq('id', motionId);
-
+  const { error } = await supabase.rpc('open_motion', { p_motion_id: motionId });
   if (error) throw new Error(error.message);
 }
 
+// The server derives the chamber and weight from the caller's roles (migration 0028);
+// the extra arguments are kept so existing callers still compile and are ignored.
 export async function castBallot(
   motionId: string,
   vote: 'yes' | 'no' | 'abstain',
-  chamber: 'board' | 'council' | 'members',
-  weight: number = 1
+  _chamber?: 'board' | 'council' | 'members',
+  _weight?: number
 ): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const { error } = await supabase.from('ballots').insert({
-    motion_id: motionId,
-    voter_id: user.id,
-    vote,
-    chamber,
-    weight,
-  });
-
+  const { error } = await supabase.rpc('cast_ballot', { p_motion_id: motionId, p_vote: vote });
   if (error) throw new Error(error.message);
 }
 
@@ -4166,6 +4180,22 @@ export async function getMembers(): Promise<MemberOption[]> {
   }));
 }
 
+// Contributor / "submit for" picker. Goes through search_members() because RLS only lets a
+// member read their own profile row.
+export async function searchMembers(query: string, limit = 20): Promise<MemberOption[]> {
+  if (query.trim().length < 2) return [];
+  const { data, error } = await supabase.rpc('search_members', {
+    p_query: query,
+    p_limit: limit,
+  });
+  if (error || !data) return [];
+  return (data as any[]).map((m) => ({
+    id: m.id,
+    username: m.username,
+    displayName: m.display_name,
+  }));
+}
+
 // ─── Phase 9.1: Partners ───────────────────────────────────────
 
 export type PartnerTier = 'friend' | 'partner' | 'strategic';
@@ -4846,4 +4876,786 @@ export async function verifyTranscript(code: string): Promise<TranscriptVerifica
   const { data, error } = await supabase.rpc('verify_transcript', { p_code: code });
   if (error) throw new Error(error.message);
   return data as TranscriptVerification;
+}
+
+// ============================================================
+// RESTORED API SECTION: Standing, Coach, Notifications, Penalties,
+// Team Health, activity-type admin.
+//
+// Re-implemented from the SQL in supabase/migrations
+// (0002_rbac_and_taxonomy.sql, 0010_phase3_standing.sql) and from how
+// the pages consume these functions.
+//
+// CATEGORY NAMING MISMATCH: the standing SQL views (and the 0001 check
+// constraint on activity_types.category) use
+//   technology_innovation_wisdom | motivation_initiative_learning_mindset |
+//   social_soft_skills | leadership_management
+// while 0002 taxonomy + the UI (ExpCategory) use technical | social | soft | management.
+// The helpers below map between the two so pages always see ExpCategory.
+// The pairing (technology->technical, social_soft_skills->social,
+// motivation_initiative_learning_mindset->soft, leadership_management->management)
+// is an assumption; adjust CATEGORY_DB_TO_UI if the intended pairing differs.
+// ============================================================
+
+const CATEGORY_DB_TO_UI: Record<string, ExpCategory> = {
+  technology_innovation_wisdom: 'technical',
+  social_soft_skills: 'social',
+  motivation_initiative_learning_mindset: 'soft',
+  leadership_management: 'management',
+  technical: 'technical',
+  social: 'social',
+  soft: 'soft',
+  management: 'management',
+};
+
+const CATEGORY_UI_TO_DB: Record<ExpCategory, string> = {
+  technical: 'technology_innovation_wisdom',
+  social: 'social_soft_skills',
+  soft: 'motivation_initiative_learning_mindset',
+  management: 'leadership_management',
+};
+
+const UI_CATEGORIES: ExpCategory[] = ['technical', 'social', 'soft', 'management'];
+
+function toUiCategory(raw: string | null | undefined): ExpCategory {
+  return (raw && CATEGORY_DB_TO_UI[raw]) || 'technical';
+}
+
+/** Reads a position minimum for a UI category from a min_exp_per_category jsonb (either key style). */
+function categoryMinFromJson(
+  json: Record<string, any> | null | undefined,
+  cat: ExpCategory
+): number | null {
+  if (!json) return null;
+  const v = json[CATEGORY_UI_TO_DB[cat]] ?? json[cat];
+  return v === undefined || v === null ? null : Number(v);
+}
+
+// ---------------- Standing ----------------
+
+export type StandingZone = 'Safe' | 'Watch' | 'Critical';
+
+export interface MemberStanding {
+  memberId: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  branchId: string | null;
+  domainId: string | null;
+  role: string;
+  lifetimeExp: number;
+  standingExp: number;
+  standing: number;
+  positionMinTotal: number | null;
+  positionMinPerCategory: Record<string, number>;
+}
+
+export interface CategoryStanding {
+  memberId: string;
+  category: ExpCategory;
+  standing: number;
+  positionMin: number | null;
+}
+
+export interface StandingConfig {
+  windowDays: number;
+  halfLifeDays: number;
+  shadowMode: boolean;
+  /** snake_case alias: the standing page reads config.shadow_mode */
+  shadow_mode: boolean;
+}
+
+function mapMemberStandingRow(r: any): MemberStanding {
+  return {
+    memberId: r.member_id,
+    displayName: r.display_name,
+    username: r.username,
+    avatarUrl: r.avatar_url ?? null,
+    branchId: r.branch_id ?? null,
+    domainId: r.domain_id ?? null,
+    role: r.role,
+    lifetimeExp: Number(r.lifetime_exp ?? 0),
+    standingExp: Number(r.standing_exp ?? 0),
+    standing: Number(r.standing ?? 0),
+    positionMinTotal: r.position_min_total ?? null,
+    positionMinPerCategory: r.position_min_per_category ?? {},
+  };
+}
+
+export async function getMemberStanding(memberId: string): Promise<MemberStanding | null> {
+  const { data, error } = await supabase
+    .from('member_standing_view')
+    .select('*')
+    .eq('member_id', memberId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapMemberStandingRow(data);
+}
+
+/** Always returns one row per UI category (missing ledger rows count as standing 0). */
+export async function getMemberCategoryStanding(memberId: string): Promise<CategoryStanding[]> {
+  const [{ data: rows, error }, base] = await Promise.all([
+    supabase.from('member_category_standing_view').select('*').eq('member_id', memberId),
+    getMemberStanding(memberId),
+  ]);
+  if (error) return [];
+  const byCat: Partial<Record<ExpCategory, number>> = {};
+  for (const r of rows || []) {
+    if (!r.category) continue; // view emits null category for categories with no ledger rows
+    const ui = toUiCategory(r.category);
+    byCat[ui] = (byCat[ui] ?? 0) + Number(r.standing ?? 0);
+  }
+  return UI_CATEGORIES.map((cat) => ({
+    memberId,
+    category: cat,
+    standing: byCat[cat] ?? 0,
+    positionMin: categoryMinFromJson(base?.positionMinPerCategory, cat),
+  }));
+}
+
+export async function getStandingConfig(): Promise<StandingConfig> {
+  const { data } = await supabase
+    .from('standing_config')
+    .select('*')
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  // Defaults mirror the table defaults in 0010_phase3_standing.sql
+  const shadow = data?.shadow_mode ?? true;
+  return {
+    windowDays: data?.window_days ?? 90,
+    halfLifeDays: data?.half_life_days ?? 30,
+    shadowMode: shadow,
+    shadow_mode: shadow,
+  };
+}
+
+function computeStandingZone(
+  standing: number,
+  positionMin: number,
+  halfLifeDays: number
+): { zone: StandingZone; runwayDays: number | null } {
+  if (!positionMin || positionMin <= 0) return { zone: 'Safe', runwayDays: null };
+  if (standing <= positionMin) return { zone: 'Critical', runwayDays: 0 };
+  const runwayDays = Math.round((halfLifeDays * Math.log(standing / positionMin)) / Math.log(2));
+  if (runwayDays < 10) return { zone: 'Critical', runwayDays };
+  if (runwayDays < 30) return { zone: 'Watch', runwayDays };
+  return { zone: 'Safe', runwayDays };
+}
+
+/**
+ * Zone from standing vs position minimum: runway = days until decayed standing
+ * falls to positionMin = halfLife * log2(standing / positionMin).
+ * <10 days Critical, <30 days Watch, else Safe (same thresholds as the standing page what-if).
+ */
+export async function getStandingZone(
+  standing: number,
+  positionMin: number,
+  halfLifeDays: number
+): Promise<{ zone: StandingZone; runwayDays: number | null }> {
+  return computeStandingZone(standing, positionMin, halfLifeDays);
+}
+
+// ---------------- Coach ----------------
+
+export interface CoachRecommendation {
+  id: string;
+  activityId: string;
+  activityTitle: string;
+  activityCategory: ExpCategory;
+  activityDifficulty: number;
+  fitReason: string;
+  expRange: { min: number; max: number };
+  runwayChange: { from: number; to: number } | null;
+  capped: boolean;
+  leaguePlacesGained?: number;
+  /** Always true: there is no server-side coach engine; values are client-side estimates. */
+  isEstimate: boolean;
+}
+
+export interface PlanItem {
+  id: string;
+  memberId: string;
+  activityId: string;
+  activityTitle: string;
+  activityCategory: ExpCategory;
+  expReward: number;
+  dayOfWeek: number;
+  isCompleted: boolean;
+  addedAt: string;
+}
+
+export interface WeeklyPlan {
+  items: PlanItem[];
+  totalExp: number;
+}
+
+/**
+ * ESTIMATE. No coach table/RPC exists, so this ranks active increment activity types
+ * (excluding coach_not_for_me) by the member's category gap vs position minimum,
+ * then by EXP midpoint. Capped activities (season_cap reached in the 90-day window)
+ * are returned with capped=true and sorted last.
+ */
+export async function getCoachRecommendations(memberId: string): Promise<CoachRecommendation[]> {
+  const [standing, catStanding, config, typesRes, nfmRes, claimsRes] = await Promise.all([
+    getMemberStanding(memberId),
+    getMemberCategoryStanding(memberId),
+    getStandingConfig(),
+    supabase.from('activity_types').select('*').eq('is_active', true).eq('kind', 'increment'),
+    supabase.from('coach_not_for_me').select('activity_type_id').eq('member_id', memberId),
+    supabase
+      .from('claims')
+      .select('activity_type_id, status')
+      .eq('claimant_id', memberId)
+      .gte('created_at', new Date(Date.now() - 90 * 86_400_000).toISOString()),
+  ]);
+  if (typesRes.error || !typesRes.data) return [];
+
+  const hidden = new Set((nfmRes.data || []).map((r: any) => r.activity_type_id));
+  const used: Record<string, number> = {};
+  for (const c of claimsRes.data || []) {
+    if (c.status === 'approved' || c.status === 'submitted' || c.status === 'under_review') {
+      used[c.activity_type_id] = (used[c.activity_type_id] || 0) + 1;
+    }
+  }
+  const gapByCat: Partial<Record<ExpCategory, number>> = {};
+  for (const cs of catStanding) {
+    gapByCat[cs.category] = Math.max(0, (cs.positionMin ?? 0) - cs.standing);
+  }
+  const current = standing?.standing ?? 0;
+  const posMin = standing?.positionMinTotal ?? 0;
+  const half = config.halfLifeDays;
+
+  const scored = typesRes.data
+    .filter((a: any) => !hidden.has(a.id))
+    .map((a: any) => {
+      const cat = toUiCategory(a.category);
+      const mid = Math.floor((a.exp_min + a.exp_max) / 2);
+      const capped = !!a.season_cap && (used[a.id] || 0) >= a.season_cap;
+      const gap = gapByCat[cat] ?? 0;
+      const fitReason =
+        gap > 0
+          ? `Your ${cat} standing is ${Math.round(gap)} below your position minimum; this can close part of the gap (estimate).`
+          : `Keeps your ${cat} activity steady (estimate).`;
+      const runwayChange =
+        posMin > 0
+          ? {
+              from: computeStandingZone(current, posMin, half).runwayDays ?? 0,
+              to: computeStandingZone(current + mid, posMin, half).runwayDays ?? 0,
+            }
+          : null;
+      const rec: CoachRecommendation = {
+        id: a.id,
+        activityId: a.id,
+        activityTitle: a.name,
+        activityCategory: cat,
+        activityDifficulty: a.difficulty ?? 3,
+        fitReason,
+        expRange: { min: a.exp_min, max: a.exp_max },
+        runwayChange,
+        capped,
+        leaguePlacesGained: Math.min(5, Math.floor(mid / 50)),
+        isEstimate: true,
+      };
+      return { score: (capped ? -1e9 : 0) + gap * 10 + mid / 100, rec };
+    });
+  scored.sort((x: { score: number }, y: { score: number }) => y.score - x.score);
+  return scored.slice(0, 12).map((s: { rec: CoachRecommendation }) => s.rec);
+}
+
+export async function getWeeklyPlan(memberId: string): Promise<WeeklyPlan | null> {
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // Monday
+  const { data, error } = await supabase
+    .from('coach_plan')
+    .select('*')
+    .eq('member_id', memberId)
+    .gte('added_at', weekStart.toISOString())
+    .order('day_of_week', { ascending: true });
+  if (error || !data) return null;
+  const items: PlanItem[] = data.map((p: any) => ({
+    id: p.id,
+    memberId: p.member_id,
+    activityId: p.activity_type_id,
+    activityTitle: p.activity_title,
+    activityCategory: toUiCategory(p.activity_category),
+    expReward: p.exp_reward ?? 0,
+    dayOfWeek: p.day_of_week,
+    isCompleted: !!p.is_completed,
+    addedAt: p.added_at,
+  }));
+  return { items, totalExp: items.reduce((s, i) => s + i.expReward, 0) };
+}
+
+export async function addToPlan(
+  memberId: string,
+  activityId: string,
+  dayOfWeek: number
+): Promise<string> {
+  const { data: at, error: atErr } = await supabase
+    .from('activity_types')
+    .select('*')
+    .eq('id', activityId)
+    .single();
+  if (atErr || !at) throw new Error(atErr?.message || 'Activity not found');
+  const { data, error } = await supabase.rpc('add_to_coach_plan', {
+    p_member_id: memberId,
+    p_activity_type_id: activityId,
+    p_activity_title: at.name,
+    p_activity_category: at.category,
+    p_activity_domain: at.domain_id ?? null,
+    p_exp_reward: Math.floor((at.exp_min + at.exp_max) / 2),
+    p_day_of_week: dayOfWeek,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+export async function removeFromPlan(planItemId: string): Promise<void> {
+  const { error } = await supabase.rpc('remove_from_coach_plan', { p_plan_item_id: planItemId });
+  if (error) throw new Error(error.message);
+}
+
+export async function markNotForMe(activityId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_coach_not_for_me', { p_activity_type_id: activityId });
+  if (error) throw new Error(error.message);
+}
+
+// ---------------- Notifications ----------------
+
+export type NotificationType =
+  | 'weekly_digest'
+  | 'watch_warning'
+  | 'critical_alert'
+  | 'attendance_reminder'
+  | 'approver_reminder'
+  | 'system'
+  | 'claim_update'
+  | 'reward'
+  | 'penalty';
+
+export interface Notification {
+  id: string;
+  memberId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  channel: 'in_app' | 'discord_dm' | 'email';
+  isRead: boolean;
+  isDismissed: boolean;
+  data: Record<string, any>;
+  createdAt: string;
+  readAt: string | null;
+  dismissedAt: string | null;
+}
+
+export interface NotificationSetting {
+  id: string;
+  memberId: string;
+  inApp: boolean;
+  discordDm: boolean;
+  email: boolean;
+  quietHoursStart: string; // HH:MM
+  quietHoursEnd: string; // HH:MM
+  maxProactiveNudgesPerWeek: number;
+  autoPauseOnLeave: boolean;
+  autoPauseOnExams: boolean;
+  leaveUntil: string | null; // datetime-local format (YYYY-MM-DDTHH:mm)
+  examUntil: string | null;
+  updatedAt: string;
+}
+
+function toDatetimeLocal(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocal(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+export async function getNotifications(opts?: {
+  limit?: number;
+  includeDismissed?: boolean;
+}): Promise<Notification[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  let q = supabase
+    .from('notifications')
+    .select('*')
+    .eq('member_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(opts?.limit ?? 50);
+  if (!opts?.includeDismissed) q = q.eq('is_dismissed', false);
+  const { data, error } = await q;
+  if (error || !data) return [];
+  return data.map((n: any) => ({
+    id: n.id,
+    memberId: n.member_id,
+    type: n.type as NotificationType,
+    title: n.title,
+    body: n.body,
+    channel: n.channel,
+    isRead: !!n.is_read,
+    isDismissed: !!n.is_dismissed,
+    data: n.data ?? {},
+    createdAt: n.created_at,
+    readAt: n.read_at ?? null,
+    dismissedAt: n.dismissed_at ?? null,
+  }));
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_notification_read', {
+    p_notification_id: notificationId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function dismissNotification(notificationId: string): Promise<void> {
+  const { error } = await supabase.rpc('dismiss_notification', {
+    p_notification_id: notificationId,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getNotificationSettings(): Promise<NotificationSetting | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('notification_settings')
+    .select('*')
+    .eq('member_id', user.id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    memberId: data.member_id,
+    inApp: !!data.in_app,
+    discordDm: !!data.discord_dm,
+    email: !!data.email,
+    quietHoursStart: String(data.quiet_hours_start ?? '22:00').slice(0, 5),
+    quietHoursEnd: String(data.quiet_hours_end ?? '08:00').slice(0, 5),
+    maxProactiveNudgesPerWeek: data.max_proactive_nudges_per_week ?? 2,
+    autoPauseOnLeave: !!data.auto_pause_on_leave,
+    autoPauseOnExams: !!data.auto_pause_on_exams,
+    leaveUntil: toDatetimeLocal(data.leave_until),
+    examUntil: toDatetimeLocal(data.exam_until),
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function updateNotificationSettings(s: {
+  inApp: boolean;
+  discordDm: boolean;
+  email: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  maxProactiveNudgesPerWeek: number;
+  autoPauseOnLeave: boolean;
+  autoPauseOnExams: boolean;
+  leaveUntil: string | null;
+  examUntil: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc('update_notification_settings', {
+    p_in_app: s.inApp,
+    p_discord_dm: s.discordDm,
+    p_email: s.email,
+    p_quiet_hours_start: s.quietHoursStart,
+    p_quiet_hours_end: s.quietHoursEnd,
+    p_max_proactive_nudges_per_week: s.maxProactiveNudgesPerWeek,
+    p_auto_pause_on_leave: s.autoPauseOnLeave,
+    p_auto_pause_on_exams: s.autoPauseOnExams,
+    p_leave_until: fromDatetimeLocal(s.leaveUntil),
+    p_exam_until: fromDatetimeLocal(s.examUntil),
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Static demo notifications shown by the page when the member has none. Not persisted. */
+export function getSampleNotifications(memberId: string): Notification[] {
+  const now = Date.now();
+  const mk = (
+    i: number,
+    type: NotificationType,
+    title: string,
+    body: string,
+    hoursAgo: number
+  ): Notification => ({
+    id: `sample-${i}`,
+    memberId,
+    type,
+    title,
+    body,
+    channel: 'in_app',
+    isRead: false,
+    isDismissed: false,
+    data: { sample: true },
+    createdAt: new Date(now - hoursAgo * 3_600_000).toISOString(),
+    readAt: null,
+    dismissedAt: null,
+  });
+  return [
+    mk(1, 'weekly_digest', 'Your weekly digest', 'Sample: a summary of your activity will appear here each week.', 2),
+    mk(2, 'watch_warning', 'Standing is trending down', 'Sample: a nudge to log recent activity before your standing drops.', 26),
+    mk(3, 'system', 'Welcome to notifications', 'Sample notification. Real alerts will replace these once you have some.', 72),
+  ];
+}
+
+// ---------------- Penalties ----------------
+
+export type PenaltySeverity = 'minor' | 'moderate' | 'severe';
+export type PenaltyRecordStatus =
+  | 'filed'
+  | 'responded'
+  | 'reviewed'
+  | 'decided'
+  | 'appealed'
+  | 'rejected'
+  | 'upheld';
+
+export interface PenaltyRecord {
+  id: string;
+  filedBy: string;
+  filedByName: string;
+  memberId: string;
+  memberName: string;
+  activityTypeId: string;
+  activityName: string;
+  severity: PenaltySeverity;
+  expDeduction: number;
+  description: string;
+  evidenceUrls: string[];
+  status: PenaltyRecordStatus;
+  responseDeadline: string | null;
+  decision: string | null;
+  decisionReason: string | null;
+  appealed: boolean;
+  isConfidential: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** `mine: true` restricts to penalties filed against the current user (RLS shows more to seniors). */
+export async function getPenalties(opts?: {
+  limit?: number;
+  memberId?: string;
+  mine?: boolean;
+}): Promise<PenaltyRecord[]> {
+  let q = supabase
+    .from('penalties')
+    .select(
+      `*,
+       member:profiles!penalties_member_id_fkey ( display_name, username ),
+       filer:profiles!penalties_filed_by_fkey ( display_name, username ),
+       activity_types ( name )`
+    )
+    .order('created_at', { ascending: false })
+    .limit(opts?.limit ?? 100);
+  let memberId = opts?.memberId;
+  if (opts?.mine && !memberId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+    memberId = user.id;
+  }
+  if (memberId) q = q.eq('member_id', memberId);
+  const { data, error } = await q;
+  if (error || !data) return [];
+  return data.map((p: any) => ({
+    id: p.id,
+    filedBy: p.filed_by,
+    filedByName: p.filer?.display_name || p.filer?.username || 'Unknown',
+    memberId: p.member_id,
+    memberName: p.member?.display_name || p.member?.username || 'Unknown',
+    activityTypeId: p.activity_type_id,
+    activityName: p.activity_types?.name || 'Penalty',
+    severity: p.severity as PenaltySeverity,
+    expDeduction: p.exp_deduction,
+    description: p.description,
+    evidenceUrls: p.evidence_urls || [],
+    status: p.status as PenaltyRecordStatus,
+    responseDeadline: p.response_deadline ?? null,
+    decision: p.decision ?? null,
+    decisionReason: p.decision_reason ?? null,
+    appealed: !!p.appealed,
+    isConfidential: !!p.is_confidential,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  }));
+}
+
+export async function filePenalty(data: {
+  memberId: string;
+  activityTypeId: string;
+  severity: PenaltySeverity;
+  expDeduction: number;
+  description: string;
+  evidenceUrls?: string[];
+  responseDeadline?: string;
+}): Promise<string> {
+  const { data: id, error } = await supabase.rpc('file_penalty', {
+    p_member_id: data.memberId,
+    p_activity_type_id: data.activityTypeId,
+    p_severity: data.severity,
+    p_exp_deduction: data.expDeduction,
+    p_description: data.description,
+    p_evidence_urls: data.evidenceUrls ?? [],
+    p_response_deadline: data.responseDeadline ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return id as string;
+}
+
+// ---------------- Team health ----------------
+
+export interface TeamMemberHealth {
+  memberId: string;
+  name: string;
+  username: string;
+  role: string;
+  zone: StandingZone;
+  standing: number;
+  positionMin: number | null;
+  /** UI category -> shortfall below the member's position minimum (only categories with a gap) */
+  categoryGaps: Record<string, number>;
+  needsSupport: boolean;
+  lastActivity: string | null;
+}
+
+export interface TeamHealthSnapshot {
+  memberCount: number;
+  avgStanding: number;
+  membersInWatch: number;
+  membersInCritical: number;
+  members: TeamMemberHealth[];
+}
+
+/**
+ * ESTIMATE. There is no team-health table (branch_health_* in 0011/0017 is branch-level),
+ * so this is computed client-side from member_standing_view /
+ * member_category_standing_view for the caller's scope:
+ * domain_head/team_lead -> own domain, branch_president/council_member -> own branch,
+ * everyone else who can reach the page (board/admin/faculty) -> all active members.
+ * `needsSupport` = Critical zone, or Watch with at least one category gap.
+ */
+export async function getTeamHealth(): Promise<TeamHealthSnapshot | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: me } = await supabase
+    .from('profiles')
+    .select('role, branch_id, domain_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  let q = supabase.from('member_standing_view').select('*').limit(500);
+  const role = me?.role as string | undefined;
+  if ((role === 'domain_head' || role === 'team_lead') && me?.domain_id) {
+    q = q.eq('domain_id', me.domain_id);
+  } else if ((role === 'branch_president' || role === 'council_member') && me?.branch_id) {
+    q = q.eq('branch_id', me.branch_id);
+  }
+  const [{ data: rows, error }, config] = await Promise.all([q, getStandingConfig()]);
+  if (error || !rows) return null;
+
+  const ids = rows.map((r: any) => r.member_id);
+  const gapsByMember: Record<string, Record<string, number>> = {};
+  const lastByMember: Record<string, string> = {};
+  if (ids.length > 0) {
+    const [catRes, ledRes] = await Promise.all([
+      supabase.from('member_category_standing_view').select('*').in('member_id', ids),
+      supabase
+        .from('ledger_entries')
+        .select('member_id, activity_date')
+        .in('member_id', ids)
+        .eq('source', 'claim')
+        .order('activity_date', { ascending: false })
+        .limit(2000),
+    ]);
+    const catStand: Record<string, Partial<Record<ExpCategory, number>>> = {};
+    for (const c of catRes.data || []) {
+      if (!c.category) continue;
+      const ui = toUiCategory(c.category);
+      const bucket = (catStand[c.member_id] ||= {});
+      bucket[ui] = (bucket[ui] ?? 0) + Number(c.standing ?? 0);
+    }
+    for (const r of rows) {
+      for (const cat of UI_CATEGORIES) {
+        const min = categoryMinFromJson(r.position_min_per_category, cat);
+        if (min && min > 0) {
+          const gap = min - (catStand[r.member_id]?.[cat] ?? 0);
+          if (gap > 0) (gapsByMember[r.member_id] ||= {})[cat] = gap;
+        }
+      }
+    }
+    for (const l of ledRes.data || []) {
+      if (!lastByMember[l.member_id]) lastByMember[l.member_id] = l.activity_date;
+    }
+  }
+
+  const members: TeamMemberHealth[] = rows.map((r: any) => {
+    const standing = Number(r.standing ?? 0);
+    const positionMin = r.position_min_total ?? null;
+    const { zone } = computeStandingZone(standing, positionMin ?? 0, config.halfLifeDays);
+    const categoryGaps = gapsByMember[r.member_id] || {};
+    const hasGap = Object.keys(categoryGaps).length > 0;
+    return {
+      memberId: r.member_id,
+      name: r.display_name || r.username,
+      username: r.username,
+      role: r.role,
+      zone,
+      standing,
+      positionMin,
+      categoryGaps,
+      needsSupport: zone === 'Critical' || (zone === 'Watch' && hasGap),
+      lastActivity: lastByMember[r.member_id] ?? null,
+    };
+  });
+
+  return {
+    memberCount: members.length,
+    avgStanding: members.length ? members.reduce((s, m) => s + m.standing, 0) / members.length : 0,
+    membersInWatch: members.filter((m) => m.zone === 'Watch').length,
+    membersInCritical: members.filter((m) => m.zone === 'Critical').length,
+    members,
+  };
+}
+
+// ---------------- Activity type admin ----------------
+
+export async function updateActivityType(
+  id: string,
+  patch: {
+    name?: string;
+    expMin?: number;
+    expMax?: number;
+    seasonCap?: number | null;
+    difficulty?: number;
+    isActive?: boolean;
+  }
+): Promise<void> {
+  const row: Record<string, any> = {};
+  if (patch.name !== undefined) row.name = patch.name;
+  if (patch.expMin !== undefined) row.exp_min = patch.expMin;
+  if (patch.expMax !== undefined) row.exp_max = patch.expMax;
+  // 0 or null means "no season cap" (activities treat a falsy season_cap as uncapped)
+  if (patch.seasonCap !== undefined) row.season_cap = patch.seasonCap ? patch.seasonCap : null;
+  if (patch.difficulty !== undefined) row.difficulty = patch.difficulty;
+  if (patch.isActive !== undefined) row.is_active = patch.isActive;
+  const { error } = await supabase.from('activity_types').update(row).eq('id', id);
+  if (error) throw new Error(error.message);
 }

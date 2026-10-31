@@ -381,3 +381,20 @@ export function canSubmitOnBehalf(
 
   return scopeOrder[targetScope] <= scopeOrder[submitterScope];
 }
+
+/**
+ * True if any of the roles grants the permission at any scope.
+ * Use for page-level guards, where the concrete target is not known yet.
+ */
+export function canAnyScope(userRoles: Role[], permission: Permission): boolean {
+  return userRoles.some((role) => (PERMISSION_MATRIX[role]?.[permission]?.length ?? 0) > 0);
+}
+
+/**
+ * Roles that hold a permission at some scope (for "You need the X role" messages).
+ */
+export function rolesWithPermission(permission: Permission): Role[] {
+  return (Object.keys(PERMISSION_MATRIX) as Role[]).filter(
+    (role) => (PERMISSION_MATRIX[role]?.[permission]?.length ?? 0) > 0
+  );
+}

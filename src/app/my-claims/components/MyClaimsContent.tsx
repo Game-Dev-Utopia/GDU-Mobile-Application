@@ -35,7 +35,7 @@ export default function MyClaimsContent() {
   const load = useCallback(async () => {
     const [claimsData, penaltiesData] = await Promise.all([
       getMyClaims(),
-      getPenalties({ limit: 50 }),
+      getPenalties({ limit: 50, mine: true }),
     ]);
     setClaims(claimsData);
     setPenalties(penaltiesData);

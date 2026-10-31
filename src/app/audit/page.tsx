@@ -229,7 +229,7 @@ export default function AuditPage() {
                   logs.map((l) => (
                     <tr key={l.id} className="border-b border-line/50 hover:bg-accent-soft/5">
                       <td className="px-4 py-3 text-mute font-mono text-xs">
-                        {new Date(l.createdAt).toLocaleString()}
+                        {l.createdAt ? new Date(l.createdAt).toLocaleString() : '—'}
                       </td>
                       <td className="px-4 py-3 text-ink">
                         <div className="flex items-center gap-2">

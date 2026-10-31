@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/AppLayout';
@@ -11,7 +11,6 @@ import {
   type Motion,
 } from '@/lib/api';
 import Link from 'next/link';
-import EmptyState from '@/components/ui/EmptyState';
 
 const RECALL_THRESHOLD = 5; // Required signatures for recall petition
 
@@ -117,9 +116,8 @@ export default function RecallPage() {
             <div className="text-xs text-mute">
               Select a motion without a petition to start one.
             </div>
-                  )}
-
-              </div>
+          )}
+        </div>
 
         {recallMotionsWithPetition.length === 0 ? (
           <div className="rounded-xl p-12 bg-card border border-line text-center">
@@ -127,14 +125,7 @@ export default function RecallPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {recallMotionsWithPetition.length === 0 ? (
-              <EmptyState
-                title="No motions to recall"
-                description="There are no motions available for recall petitions."
-              />
-            ) : (
-              <div className="space-y-3">
-                {recallMotionsWithPetition.map((m) => {
+            {recallMotionsWithPetition.map((m) => {
               const petition = m.petition;
               const hasPetition = !!petition;
               const alreadySigned = petition
@@ -211,7 +202,7 @@ export default function RecallPage() {
                         disabled={creating}
                         className="flex-1 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
                       >
-                        {creating ? 'Creatingâ€¦' : 'Start Petition'}
+                        {creating ? 'Creating…' : 'Start Petition'}
                       </button>
                     )}
                     {hasPetition && !alreadySigned && (
@@ -220,7 +211,7 @@ export default function RecallPage() {
                         disabled={signing.has(m.id)}
                         className="flex-1 px-4 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-medium hover:bg-rose-100 disabled:opacity-50 transition-colors"
                       >
-                        {signing.has(m.id) ? 'Signingâ€¦' : 'Sign Petition'}
+                        {signing.has(m.id) ? 'Signing…' : 'Sign Petition'}
                       </button>
                     )}
                     {hasPetition && alreadySigned && (

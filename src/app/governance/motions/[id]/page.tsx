@@ -316,7 +316,7 @@ export default function MotionDetailPage({ params }: { params: { id: string } })
 
   // Pre-compute result chamber cards
   const resultChamberCards =
-    motion.status === 'result' ? (
+    motion?.status === 'result' ? (
       <div className="grid gap-3 grid-cols-3 mb-4">
         {['board', 'council', 'members'].map((chamber) => {
           const stats = chamberStats[chamber];

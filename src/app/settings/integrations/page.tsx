@@ -10,12 +10,12 @@ import {
   type IntegrationProvider,
 } from '@/lib/api';
 import { can } from '@/lib/permissions';
-import { AlertCircle, Github, Loader2, Mail, Shield } from 'lucide-react';
+import { AlertCircle, GitBranch, Loader2, Mail, Shield } from 'lucide-react';
 import EmptyState from '@/components/ui/EmptyState';
 
 const INTEGRATION_DETAILS: Record<IntegrationProvider, { icon: any; note: string }> = {
   github: {
-    icon: Github,
+    icon: GitBranch,
     note: 'Ingests PR merges, issue closes, review activity and commit counts from connected repos.',
   },
   discord: {
@@ -106,7 +106,7 @@ export default function SettingsIntegrationsPage() {
         <div className="grid gap-4 md:grid-cols-3">
           {integrations.length === 0 ? (
             <EmptyState
-              icon={Github}
+              icon={GitBranch}
               title="No integrations connected"
               description="Connect GitHub, Discord, or social accounts to ingest activity data."
               action="Connect"

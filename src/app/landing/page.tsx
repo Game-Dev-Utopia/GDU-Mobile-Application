@@ -5,13 +5,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import LandingHero from './components/LandingHero';
 import HowItWorks from './components/HowItWorks';
 import StatsStrip from './components/StatsStrip';
-
-import React, { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import LandingHero from './components/LandingHero';
-import HowItWorks from './components/HowItWorks';
-import StatsStrip from './components/StatsStrip';
 import ProductTour from '@/components/ui/ProductTour';
 
 export default function LandingPage() {

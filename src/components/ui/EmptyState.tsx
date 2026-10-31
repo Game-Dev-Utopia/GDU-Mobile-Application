@@ -4,7 +4,7 @@ import React from 'react';
 import Icon from './AppIcon';
 
 interface EmptyStateProps {
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: React.ElementType;
   title: string;
   description?: string;
   action?: React.ReactNode;

@@ -123,19 +123,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   function loginWithDiscord() {
-    const clientId = process.env.NEXT_PUBLIC_DISCORD_CLIENT_ID;
-    const redirectUri = process.env.NEXT_PUBLIC_DISCORD_REDIRECT_URI;
-    const scope = 'identify email';
-
-    if (!clientId || !redirectUri) {
-      console.error(
-        'Discord OAuth not configured. Set NEXT_PUBLIC_DISCORD_CLIENT_ID and NEXT_PUBLIC_DISCORD_REDIRECT_URI.'
-      );
-      return;
-    }
-
-    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
-    window.location.href = discordAuthUrl;
+    // The server route sets the anti-CSRF state cookie and redirects to Discord.
+    window.location.href = '/api/auth/discord';
   }
 
   async function logout() {

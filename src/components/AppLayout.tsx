@@ -6,6 +6,11 @@ import BottomTabBar from './BottomTabBar';
 import ViewAsMenu from './ViewAsMenu';
 import PWAInstallPrompt from './ui/PWAInstallPrompt';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 interface AppLayoutProps {
   children: React.ReactNode;
   activePath: string;
@@ -26,13 +31,13 @@ export default function AppLayout({ children, activePath }: AppLayoutProps) {
       // Show the install prompt after a short delay
       setTimeout(() => setInstallPromptOpen(true), 2500);
     }
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('beforeinstallprompt', handler as EventListener);
+    return () => window.removeEventListener('beforeinstallprompt', handler as EventListener);
   }, []);
 
   const handleInstall = useCallback(() => {
     deferredPrompt?.prompt();
-    deferredPrompt?.userChoice().then(() => {
+    deferredPrompt?.userChoice.then(() => {
       setDeferredPrompt(null);
       setInstallPromptOpen(false);
       localStorage.setItem('gduxp:pwa-dismissed', '1');
@@ -78,7 +83,7 @@ export default function AppLayout({ children, activePath }: AppLayoutProps) {
       />
 
       {/* Dev-only View As Menu */}
-      <ViewAsMenu />
+      {process.env.NODE_ENV === 'development' && <ViewAsMenu />}
     </div>
   );
 }
