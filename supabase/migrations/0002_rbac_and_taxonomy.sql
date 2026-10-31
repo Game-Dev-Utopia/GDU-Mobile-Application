@@ -268,7 +268,7 @@ create policy penalties_insert on penalties
     auth.uid() = filed_by
     and exists (select 1 from profiles where id = auth.uid() and role in ('team_lead', 'domain_head', 'council_member', 'board_member', 'conduct_panel_member', 'faculty'))
   );
-create penalties_update on penalties
+create policy penalties_update on penalties
   for update using (
     auth.uid() = filed_by
     or auth.uid() = member_id
